@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-debug.log
+.pnpm-store/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Environment
+.env
+.env.local
+.env*.local
+.env.production
+.env.development
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archives and sandboxes (not production code)
+archive/
+analysis-sandbox/
+hepan-sandbox/
+kline-sandbox/
+
+# Planning
+.planning/

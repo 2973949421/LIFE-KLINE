@@ -1,0 +1,321 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LifeKlineOutput_v3",
+  "description": "人生 K 线图输出数据结构 v3.0 - 性能优化版，移除冗余字段，新增寿命推算",
+  "type": "object",
+  "required": ["dimension", "period", "lifespan", "timeline", "global_analysis", "technical_commentary"],
+  "properties": {
+    "dimension": {
+      "type": "string",
+      "enum": ["wealth", "life", "emotion"],
+      "description": "分析维度：财富/生命/情感"
+    },
+    "period": {
+      "type": "string",
+      "enum": ["day", "month", "year"],
+      "description": "时间周期：日K(30条)/月K(12条)/年K(75-89条)"
+    },
+    "model_verification": {
+      "type": "string",
+      "description": "模型验证标识"
+    },
+    "lifespan": {
+      "type": "object",
+      "description": "AI推算的寿命信息（仅年K时输出）",
+      "required": ["total_years", "confidence", "reasoning"],
+      "properties": {
+        "total_years": {
+          "type": "integer",
+          "description": "推算总寿命年数 (75-89区间)",
+          "minimum": 75,
+          "maximum": 89
+        },
+        "confidence": {
+          "type": "number",
+          "description": "推算置信度 (0-1)",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "推算依据简述 (50字以内)",
+          "maxLength": 50
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "description": "元数据信息",
+      "required": ["birthYear", "gender"],
+      "properties": {
+        "birthYear": {
+          "type": "integer",
+          "description": "出生年份 (公历)",
+          "minimum": 1900,
+          "maximum": 2100
+        },
+        "birthTime": {
+          "type": "string",
+          "description": "出生时辰 (HH:mm 格式)",
+          "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "birthHour": {
+          "type": "string",
+          "description": "出生时辰中文名，如 '子时'、'丑时'",
+          "enum": ["子时", "丑时", "寅时", "卯时", "辰时", "巳时", "午时", "未时", "申时", "酉时", "戌时", "亥时"]
+        },
+        "hourAttribute": {
+          "type": "string",
+          "description": "时辰五行属性，如 '子水'、'寅木'"
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["male", "female"],
+          "description": "性别"
+        },
+        "mainAttribute": {
+          "type": "string",
+          "description": "命局主属性，如 '身弱火'、'身旺金'"
+        },
+        "patternType": {
+          "type": "string",
+          "enum": [
+            "blow_off_top",
+            "saucer_bottom",
+            "m_top",
+            "breakaway_gap",
+            "flash_crash",
+            "v_recovery",
+            "sideways",
+            "step_up",
+            "descending_triangle",
+            "w_bottom"
+          ],
+          "description": "人生 K 线形态类型"
+        },
+        "patternName": {
+          "type": "string",
+          "description": "形态中文名称，如 '大器晚成'、'中年危机'"
+        },
+        "targetYear": {
+          "type": "integer",
+          "description": "目标分析年份（用于日K/月K）"
+        },
+        "targetMonth": {
+          "type": "integer",
+          "description": "目标分析月份（用于日K）",
+          "minimum": 1,
+          "maximum": 12
+        }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "description": "运势时间序列数据（纯数字OHLC，无冗余文案）",
+      "items": {
+        "type": "object",
+        "required": ["year", "age", "o", "h", "l", "c", "summary"],
+        "properties": {
+          "year": {
+            "type": "integer",
+            "description": "公历年份",
+            "minimum": 1900,
+            "maximum": 2200
+          },
+          "month": {
+            "type": "integer",
+            "description": "月份 (月K/日K时使用)",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "day": {
+            "type": "integer",
+            "description": "日期 (日K时使用)",
+            "minimum": 1,
+            "maximum": 31
+          },
+          "age": {
+            "type": "integer",
+            "description": "虚岁年龄",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "o": {
+            "type": "integer",
+            "description": "开盘值 (Open) - 周期起始运势分 (0-100)",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "h": {
+            "type": "integer",
+            "description": "最高值 (High) - 周期内运势峰值 (0-100)",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "l": {
+            "type": "integer",
+            "description": "最低值 (Low) - 周期内运势谷底 (0-100)",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "c": {
+            "type": "integer",
+            "description": "收盘值 (Close) - 周期结束运势分 (0-100)",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "summary": {
+            "type": "string",
+            "description": "运势简评 (压缩至8字以内)",
+            "minLength": 2,
+            "maxLength": 8
+          },
+          "isPeak": {
+            "type": "boolean",
+            "description": "是否为巅峰周期",
+            "default": false
+          },
+          "isGap": {
+            "type": "boolean",
+            "description": "是否存在跳空缺口",
+            "default": false
+          },
+          "gapType": {
+            "type": "string",
+            "enum": ["up", "down", null],
+            "description": "跳空类型：向上/向下"
+          },
+          "candleType": {
+            "type": "string",
+            "enum": ["bullish", "bearish", "doji"],
+            "description": "蜡烛类型：阳线/阴线/十字星"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "global_analysis": {
+      "type": "object",
+      "description": "全局分析报告（所有文案集中于此，减少token消耗）",
+      "required": ["dimension_analysis", "pattern_match", "key_insights"],
+      "properties": {
+        "dimension_analysis": {
+          "type": "string",
+          "description": "维度专属深度分析（财富/生命/情感各有差异化模板，约200字）",
+          "minLength": 150,
+          "maxLength": 300
+        },
+        "pattern_match": {
+          "type": "object",
+          "description": "形态匹配分析",
+          "required": ["primary_pattern", "confidence"],
+          "properties": {
+            "primary_pattern": {
+              "type": "string",
+              "description": "主要匹配形态"
+            },
+            "secondary_pattern": {
+              "type": "string",
+              "description": "次要匹配形态"
+            },
+            "confidence": {
+              "type": "number",
+              "description": "匹配置信度 (0-1)",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "key_insights": {
+          "type": "string",
+          "description": "关键洞察与建议（约100字）",
+          "minLength": 50,
+          "maxLength": 150
+        },
+        "peak_periods": {
+          "type": "array",
+          "description": "巅峰时期列表",
+          "items": {
+            "type": "object",
+            "properties": {
+              "period": { "type": "string", "description": "时期描述，如 '2025-2030年'" },
+              "reason": { "type": "string", "description": "原因简述" }
+            }
+          },
+          "maxItems": 3
+        },
+        "risk_periods": {
+          "type": "array",
+          "description": "风险时期列表",
+          "items": {
+            "type": "object",
+            "properties": {
+              "period": { "type": "string", "description": "时期描述" },
+              "risk_type": { "type": "string", "description": "风险类型" },
+              "mitigation": { "type": "string", "description": "化解建议" }
+            }
+          },
+          "maxItems": 3
+        }
+      }
+    },
+    "technical_commentary": {
+      "type": "object",
+      "description": "技术指标文字解读",
+      "required": ["ma_trend", "macd_signal"],
+      "properties": {
+        "ma_trend": {
+          "type": "string",
+          "description": "均线趋势分析 (MA5/MA10/MA20 的排列与含义)",
+          "minLength": 30,
+          "maxLength": 100
+        },
+        "macd_signal": {
+          "type": "string",
+          "description": "MACD信号解读 (金叉/死叉及含义)",
+          "minLength": 30,
+          "maxLength": 100
+        },
+        "kdj_signal": {
+          "type": "string",
+          "description": "KDJ信号解读 (天地人三才和谐度)",
+          "maxLength": 80
+        },
+        "rsi_signal": {
+          "type": "string",
+          "description": "RSI信号解读 (运势过热/过冷判断)",
+          "maxLength": 80
+        },
+        "boll_signal": {
+          "type": "string",
+          "description": "BOLL信号解读 (命运通道弹性)",
+          "maxLength": 80
+        },
+        "key_levels": {
+          "type": "object",
+          "description": "关键支撑阻力位",
+          "properties": {
+            "support": {
+              "type": "integer",
+              "description": "主要支撑位"
+            },
+            "resistance": {
+              "type": "integer",
+              "description": "主要阻力位"
+            },
+            "psychological_level": {
+              "type": "integer",
+              "description": "心理关口 (如50多空线)"
+            }
+          }
+        },
+        "trend_outlook": {
+          "type": "string",
+          "enum": ["bullish", "bearish", "neutral"],
+          "description": "趋势展望：看多/看空/中性"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

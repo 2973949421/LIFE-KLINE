@@ -1,0 +1,189 @@
+请严格按计划执行。第一阶段目标是功能等价迁移，不要重写产品逻辑，不要擅自改算法，不要提交真实 API key，不要清理 personweb，直到 lifeKLINE 已经本地 build/test 通过并成功部署到 Vercel。
+
+如果遇到 import 缺失、乱码、依赖冲突，先记录并最小修复；任何涉及算法行为、API response shape、UI 大改、prompt 大改的决策都暂停询问。
+
+# Life-Kline 独立全栈项目迁移方案
+
+## Summary
+
+目标是在 `B:\sharewithlight\lifeKLINE` 建立一个可独立 GitHub 提交、可独立 Vercel 部署的 Next.js 全栈项目，v1 完整包含当前个人站里的单人 Life-Kline 与 Hepan 合盘功能。个人网站最终只保留 LAB 入口和外链过渡页，链接到 `https://labklife.lightinglab.top/`。
+
+执行策略固定为：**先原样搬离并跑通功能等价，再做有限架构整理；不要在第一轮重写产品逻辑。**
+
+## Architecture
+
+新项目采用 root-level Next.js App Router 结构，不做 monorepo：
+
+```text
+B:\sharewithlight\lifeKLINE
+├─ app/
+│  ├─ page.tsx
+│  ├─ layout.tsx
+│  ├─ globals.css
+│  └─ api/
+│     ├─ life-kline/route.ts
+│     ├─ life-kline/bazi/route.ts
+│     ├─ hepan-kline/route.ts
+│     └─ hepan-kline/bazi/route.ts
+├─ features/life-kline/
+│  ├─ ui/
+│  ├─ hooks/
+│  ├─ types.ts
+│  └─ constants.ts
+├─ components/life-kline/
+│  ├─ charts and result components
+│  └─ chart-utils.ts
+├─ lib/
+│  ├─ domain/
+│  │  ├─ bazi.ts
+│  │  ├─ hour-map.ts
+│  │  ├─ score-to-ohlc.ts
+│  │  ├─ hepan-score.ts
+│  │  ├─ xingsu.ts
+│  │  ├─ kline-constants.ts
+│  │  └─ ta-math.ts
+│  └─ server/
+│     ├─ env.ts
+│     ├─ llm/bailian.ts
+│     ├─ life-kline/service.ts
+│     └─ hepan-kline/service.ts
+├─ content/prompts/
+│  ├─ life-kline/skill.md
+│  ├─ life-kline/schema.json
+│  └─ hepan-kline/skill.md
+├─ tests/
+├─ .env.example
+├─ README.md
+├─ package.json
+├─ pnpm-lock.yaml
+└─ vercel.json
+```
+
+Use `pnpm`. Pin initial core versions to match the current working project unless there is a hard install conflict: `next@16.2.1`, `react@19.2.4`, `react-dom@19.2.4`, TypeScript strict mode, Tailwind v4, ESLint 9.
+
+## Implementation Changes
+
+1. **Scaffold**
+   - Initialize `B:\sharewithlight\lifeKLINE` as an independent Git repo with package name `lifekline`.
+   - Add scripts: `dev`, `build`, `start`, `lint`, `test:run`.
+   - Add `.gitignore` covering `node_modules`, `.next`, `out`, `.env*`, `.vercel`, coverage, debug logs, `*.tsbuildinfo`, `next-env.d.ts`.
+   - Add `.env.example` with:
+     - `ALI_BAILIAN_API_KEY=`
+     - `ALI_BAILIAN_BASE_URL=`
+     - `ALI_BAILIAN_MODEL_NAME=qwen-max`
+     - `NEXT_PUBLIC_SITE_URL=https://labklife.lightinglab.top`
+   - Do not carry Supabase env requirements into this project.
+
+2. **Port Existing Product Boundary**
+   - Copy current UI from `features/life-kline` into the same path in the new project.
+   - Copy chart/display components from `components/lab/life-kline` into `components/life-kline`.
+   - Copy API handlers for `life-kline` and `hepan-kline` into the new `app/api` routes.
+   - Copy domain code into `lib/domain`: `bazi`, `hour-map`, `score-to-ohlc`, `hepan-score`, `xingsu`, `kline-constants`, and `kline-sandbox/lib/ta-math` renamed to `ta-math.ts`.
+   - Copy AI services into `lib/server/life-kline` and `lib/server/hepan-kline`.
+   - Copy prompt assets from `content/skills/life-kline` and `content/skills/hepan-kline` into `content/prompts`.
+
+3. **Normalize Imports And Server Boundaries**
+   - Keep `@/*` alias mapped to project root.
+   - Update imports from `@/kline-sandbox/lib/ta-math` to `@/lib/domain/ta-math`.
+   - Update imports from root `@/lib/...` domain files to `@/lib/domain/...`.
+   - Update prompt file paths in services to read from `content/prompts/...`.
+   - Extract Bailian fetch setup into `lib/server/llm/bailian.ts`; route handlers should call service functions, not construct provider config directly.
+   - `lib/server/env.ts` must only require/validate Life-Kline env vars and must not require Supabase.
+
+4. **Functional Parity Rules**
+   - Preserve existing public API paths:
+     - `POST /api/life-kline`
+     - `POST /api/life-kline/bazi`
+     - `POST /api/hepan-kline`
+     - `POST /api/hepan-kline/bazi`
+   - Preserve existing request/response shapes used by `features/life-kline/hooks/requests.ts`.
+   - Keep both modes in the first screen: single-person Life-Kline and Hepan.
+   - Fix obvious mojibake/garbled Chinese strings only when they are user-facing errors, prompt text, labels, or README text. Do not change scoring/math behavior during the first pass.
+
+5. **Personal Website Cleanup After Deploy**
+   - Only after independent Vercel production deploy is verified, update `B:\sharewithlight\personweb`.
+   - Change the LAB card for Life-Kline to an external link pointing to `https://labklife.lightinglab.top/`, matching the current ASCII pattern.
+   - Replace `/lab/life-kline` with a lightweight external handoff page similar to `/lab/ascii-art`.
+   - Remove personal-site Life-Kline internals only after confirming no imports remain: UI feature folder, Life-Kline/Hepan API routes, Life-Kline/Hepan server services, prompt content, and domain files used only by Life-Kline.
+   - Do not delete shared files if `financial` or other LAB routes still import them.
+
+## Execution Phases And Acceptance Gates
+
+1. **Phase 0: Inventory**
+   - Produce a migration inventory listing source path, target path, and owner category: UI, API, domain, server, prompt, tests.
+   - Acceptance: no unresolved imports in the inventory; Hepan prompt and API are included.
+
+2. **Phase 1: Scaffold**
+   - Create the standalone Next project and install dependencies with `pnpm`.
+   - Acceptance commands:
+     - `pnpm install`
+     - `pnpm lint`
+     - `pnpm build`
+   - Build may fail only if product code has not been copied yet; scaffold itself must be clean.
+
+3. **Phase 2: Copy And Wire**
+   - Copy code and update imports.
+   - Add `app/page.tsx` that renders `LifeKlineClient`.
+   - Add metadata in `app/layout.tsx` for Life-Kline.
+   - Acceptance commands:
+     - `pnpm lint`
+     - `pnpm build`
+     - `pnpm test:run`
+
+4. **Phase 3: Runtime Verification**
+   - Run local dev server.
+   - Verify in browser:
+     - home page loads without console errors
+     - mode switching works
+     - instant bazi endpoints respond for valid input
+     - invalid API input returns controlled 400 JSON
+   - If real Bailian env vars are available, verify one single-person analysis and one Hepan analysis. If not, document that AI runtime verification is blocked by missing env.
+
+5. **Phase 4: GitHub And Vercel**
+   - Initialize Git in `B:\sharewithlight\lifeKLINE`.
+   - First commit message: `Initial Life-Kline standalone app`.
+   - Push to a new GitHub repository named `lifeKLINE`.
+   - Import that repo into Vercel.
+   - Set env vars in Vercel.
+   - Bind production domain `labklife.lightinglab.top`.
+   - Acceptance:
+     - Vercel production build succeeds
+     - production `/` loads
+     - production API returns expected 400 on empty POST
+     - real AI routes work if env/provider quota is valid
+
+6. **Phase 5: Personal Site Detachment**
+   - Update personal website LAB link and `/lab/life-kline` handoff page.
+   - Remove embedded Life-Kline code from personal site after import checks.
+   - Acceptance in `personweb`:
+     - `pnpm lint`
+     - `pnpm build`
+     - LAB page links Life-Kline externally
+     - no `features/life-kline` or Life-Kline API route remains unless deliberately retained as redirect/handoff
+
+## Test Plan
+
+- Port existing tests:
+  - `bazi.test.ts`
+  - `score-to-ohlc.test.ts`
+- Add focused tests:
+  - `hepan-score` adjustment calculation is deterministic and bounded.
+  - `ta-math` indicators preserve input length and handle short series.
+  - API validation returns 400 for missing required fields.
+  - Prompt loader resolves files from `content/prompts` in production build context.
+- Required checks before handoff:
+  - `pnpm lint`
+  - `pnpm test:run`
+  - `pnpm build`
+  - local browser verification
+  - Vercel production smoke test
+
+## Assumptions And Defaults
+
+- v1 includes both single-person Life-Kline and Hepan-Kline.
+- `B:\sharewithlight\lifeKLINE` is the new independent repository root.
+- Package manager is `pnpm`.
+- Public production URL is `https://labklife.lightinglab.top/`.
+- The first migration prioritizes functional parity and deployability over deep UI/API redesign.
+- No Supabase dependency belongs in the standalone Life-Kline project unless a later product requirement adds persistence.
+- The executing agent must not clean the personal website until the standalone Vercel deployment is verified.

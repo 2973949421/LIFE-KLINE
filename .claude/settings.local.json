@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"B:\\\\sharewithlight\\\\personweb\")",
+      "Bash(pnpm install *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm build *)",
+      "Bash(cp \"B:/sharewithlight/personweb/app/api/life-kline/route.ts\" \"B:/sharewithlight/lifeKLINE/app/api/life-kline/route.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/app/api/life-kline/bazi/route.ts\" \"B:/sharewithlight/lifeKLINE/app/api/life-kline/bazi/route.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/app/api/hepan-kline/route.ts\" \"B:/sharewithlight/lifeKLINE/app/api/hepan-kline/route.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/app/api/hepan-kline/bazi/route.ts\" \"B:/sharewithlight/lifeKLINE/app/api/hepan-kline/bazi/route.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/constants.ts\" \"B:/sharewithlight/lifeKLINE/features/life-kline/constants.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/types.ts\" \"B:/sharewithlight/lifeKLINE/features/life-kline/types.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/hooks/requests.ts\" \"B:/sharewithlight/lifeKLINE/features/life-kline/hooks/requests.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/hooks/useHepanKline.ts\" \"B:/sharewithlight/lifeKLINE/features/life-kline/hooks/useHepanKline.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/hooks/useSingleLifeKline.ts\" \"B:/sharewithlight/lifeKLINE/features/life-kline/hooks/useSingleLifeKline.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/ui/HepanInputPanel.tsx\" \"B:/sharewithlight/lifeKLINE/features/life-kline/ui/HepanInputPanel.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/ui/HepanResultView.tsx\" \"B:/sharewithlight/lifeKLINE/features/life-kline/ui/HepanResultView.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/ui/LoadingState.tsx\" \"B:/sharewithlight/lifeKLINE/features/life-kline/ui/LoadingState.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/ui/ModeSidebar.tsx\" \"B:/sharewithlight/lifeKLINE/features/life-kline/ui/ModeSidebar.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/features/life-kline/ui/SingleInputPanel.tsx\" \"B:/sharewithlight/lifeKLINE/features/life-kline/ui/SingleInputPanel.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/components/lab/life-kline/AnalysisPanel.tsx\" \"B:/sharewithlight/lifeKLINE/components/life-kline/AnalysisPanel.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/components/lab/life-kline/BaziDisplay.tsx\" \"B:/sharewithlight/lifeKLINE/components/life-kline/BaziDisplay.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/components/lab/life-kline/BOLLChart.tsx\" \"B:/sharewithlight/lifeKLINE/components/life-kline/BOLLChart.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/components/lab/life-kline/chart-utils.ts\" \"B:/sharewithlight/lifeKLINE/components/life-kline/chart-utils.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/components/lab/life-kline/DualBaziDisplay.tsx\" \"B:/sharewithlight/lifeKLINE/components/life-kline/DualBaziDisplay.tsx\")",
+      "Bash(cp \"B:/sharewithlight/personweb/content/skills/life-kline/skill.md\" \"B:/sharewithlight/lifeKLINE/content/prompts/life-kline/skill.md\")",
+      "Bash(cp \"B:/sharewithlight/personweb/content/skills/life-kline/schema.json\" \"B:/sharewithlight/lifeKLINE/content/prompts/life-kline/schema.json\")",
+      "Bash(cp \"B:/sharewithlight/personweb/content/skills/hepan-kline/skill.md\" \"B:/sharewithlight/lifeKLINE/content/prompts/hepan-kline/skill.md\")",
+      "Bash(cp \"B:/sharewithlight/personweb/tests/bazi.test.ts\" \"B:/sharewithlight/lifeKLINE/tests/bazi.test.ts\")",
+      "Bash(cp \"B:/sharewithlight/personweb/tests/score-to-ohlc.test.ts\" \"B:/sharewithlight/lifeKLINE/tests/score-to-ohlc.test.ts\")",
+      "Bash(pnpm test:run)",
+      "Bash(sed -i \"s|from '../lib/bazi'|from '../lib/domain/bazi'|g\" tests/bazi.test.ts)",
+      "Bash(sed -i \"s|from '../lib/score-to-ohlc'|from '../lib/domain/score-to-ohlc'|g\" tests/score-to-ohlc.test.ts)",
+      "Bash(sed -i \"s|../lib/bazi.ts|../lib/domain/bazi.ts|g\" tests/bazi.test.ts)",
+      "Bash(sed -i \"s|../lib/score-to-ohlc.ts|../lib/domain/score-to-ohlc.ts|g\" tests/score-to-ohlc.test.ts)",
+      "Bash(pnpm dev *)",
+      "Bash(curl -s -X POST http://localhost:3000/api/life-kline/bazi -H \"Content-Type: application/json\" -d '{\"birth\":\"1995-08-24\",\"gender\":\"male\"}')",
+      "Bash(curl *)"
+    ]
+  }
+}
