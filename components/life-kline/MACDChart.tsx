@@ -48,7 +48,7 @@ export default function MACDChart({ data, timeline, crossSignals, onSelect }: Pr
         formatter: (params: TooltipAxisParam[]) => {
           const point = data[params[0]?.dataIndex ?? 0];
           return `
-            <div style="font-family: Times New Roman, serif;">
+            <div style="font-family: STKaiti, KaiTi, serif;">
               <div style="font-weight: bold;">${xLabels[params[0]?.dataIndex ?? 0]}</div>
               <div>DIF: ${point.dif.toFixed(2)}</div>
               <div>DEA: ${point.dea.toFixed(2)}</div>
@@ -67,7 +67,7 @@ export default function MACDChart({ data, timeline, crossSignals, onSelect }: Pr
         type: 'category',
         data: xLabels,
         axisLine: { lineStyle: { color: 'rgb(26, 35, 126)' } },
-        axisLabel: { fontSize: 12, rotate: 45, fontFamily: 'Times New Roman, serif', interval: xLabelInterval },
+        axisLabel: { fontSize: 12, rotate: 45, fontFamily: 'STKaiti, KaiTi, serif', interval: xLabelInterval },
       },
       yAxis: {
         type: 'value',

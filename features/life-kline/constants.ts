@@ -7,9 +7,9 @@ export const DIMENSION_NAMES: Record<Dimension, string> = {
 };
 
 export const PERIOD_NAMES: Record<Period, string> = {
-  daily: '日K（30天）',
-  monthly: '月K（12个月）',
-  yearly: '年K（AI推算）',
+  daily: '日 K（30 天）',
+  monthly: '月 K（12 个月）',
+  yearly: '年 K（AI 推算）',
 };
 
 export const RELATION_LABELS: Record<RelationType, string> = {
@@ -20,7 +20,7 @@ export const RELATION_LABELS: Record<RelationType, string> = {
 };
 
 export const SINGLE_LOADING_TEXTS = [
-  '命盘初开，星辰渐显...',
+  '命盘初开，星辰渐明...',
   '八字流转，运势成形...',
   '五行相生，卦象渐明...',
   '大运流转，命理推演...',
@@ -37,7 +37,7 @@ export const HEPAN_LOADING_TEXTS = [
   '八字相合，命理交织...',
   '五行互补，合盘渐成...',
   '主从相生，运势成形...',
-  '星煞相配，玄机暗藏...',
+  '星宿相配，玄机暗藏...',
   '大运同步，命运相连...',
   '阴阳调和，合盘初定...',
   '红鸾天喜，缘分揭晓...',

@@ -3,31 +3,102 @@
 /* Life-Kline specific styles */
 
 :root {
-  --lab-fg: #1a1a2e;
-  --lab-border-strong: #e0e0e0;
-  --lab-panel-bg: #ffffff;
+  --lab-fg: rgb(26, 35, 126);
+  --lab-muted: rgba(26, 35, 126, 0.66);
+  --lab-border: rgba(26, 35, 126, 0.16);
+  --lab-border-strong: rgba(26, 35, 126, 0.28);
+  --lab-paper: rgb(255, 251, 240);
+  --lab-surface: rgba(255, 251, 240, 0.92);
+  --lab-surface-soft: rgba(26, 35, 126, 0.06);
+  --lab-panel-bg: rgba(255, 251, 240, 0.86);
+  --font-kaiti: "STKaiti", "KaiTi", "KaiTi_GB2312", serif;
+  --font-times: "STKaiti", Times, serif;
+}
+
+body {
+  background: var(--lab-paper);
+  color: var(--lab-fg);
+  font-family: var(--font-kaiti);
+}
+
+body,
+button,
+input,
+select,
+textarea,
+.lab-body {
+  font-family: var(--font-kaiti) !important;
+}
+
+.lab-page {
+  background:
+    linear-gradient(180deg, rgba(255, 251, 240, 0.96), rgba(255, 251, 240, 0.9)),
+    var(--lab-paper);
 }
 
 .lab-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--lab-fg);
+}
+
+.lab-mono {
+  font-family: var(--font-kaiti) !important;
+}
+
+* {
+  font-family: var(--font-kaiti) !important;
 }
 
 .lab-panel {
   background: var(--lab-panel-bg);
   border: 1px solid var(--lab-border-strong);
+  box-shadow: 0 18px 48px rgba(26, 35, 126, 0.08);
 }
 
 .lab-card-soft {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(224, 224, 224, 0.5);
+  background: var(--lab-surface-soft);
+  border: 1px solid var(--lab-border);
 }
 
 .lab-link {
-  color: #3b82f6;
+  color: var(--lab-fg);
   text-decoration: none;
 }
 
 .lab-link:hover {
   text-decoration: underline;
+}
+
+.lab-control {
+  width: 100%;
+  border: 1px solid var(--lab-border-strong);
+  background: rgba(255, 251, 240, 0.9);
+  color: var(--lab-fg);
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  outline: none;
+}
+
+.lab-control:focus {
+  border-color: var(--lab-fg);
+  box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+}
+
+.lab-primary-button {
+  width: 100%;
+  min-height: 2.55rem;
+  border: 1px solid var(--lab-fg);
+  background: var(--lab-fg);
+  color: var(--lab-paper);
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.lab-primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.lab-primary-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }

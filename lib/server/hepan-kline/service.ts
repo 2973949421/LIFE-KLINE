@@ -4,7 +4,7 @@ import { Solar } from 'lunar-javascript';
 import { paiPan, type BaZiResult } from '@/lib/domain/bazi';
 import { adjustMeetYear, type RelationType } from '@/lib/domain/hepan-score';
 import { RELATION_LABELS, normalizeLunarMonth } from '@/lib/domain/kline-constants';
-import { env } from '@/lib/server/env';
+import { getBailianConfig } from '@/lib/server/env';
 
 interface HepanPartyInput {
   birth: string;
@@ -180,6 +180,9 @@ JSON 结构示例：
 }
 
 export async function runHepanKlineInference(input: HepanKlineRequestInput): Promise<HepanInferenceResult> {
+  // Check Bailian API configuration first
+  const { apiKey, baseUrl, modelName } = getBailianConfig();
+
   const systemPrompt = await loadSkillPrompt();
 
   const primaryBirthYear = parseInt(input.primary.birth.split('-')[0], 10);
@@ -230,14 +233,14 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
-    const response = await fetch(`${env.bailianBaseUrl}/chat/completions`, {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${env.bailianApiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: env.bailianModelName,
+        model: modelName,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

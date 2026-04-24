@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useState } from 'react';
 
 import { useHepanKline } from '@/features/life-kline/hooks/useHepanKline';
@@ -23,25 +22,19 @@ export default function LifeKlineClient() {
   const hepan = useHepanKline();
 
   return (
-    <div className="min-h-screen">
+    <div className="lab-page min-h-screen">
       <header className="border-b" style={{ borderColor: 'var(--lab-border-strong)', borderWidth: '0.5px' }}>
-        <div className="mx-auto max-w-7xl px-4 py-4">
-          <Link
-            href="/lab"
-            className="lab-link mb-2 inline-flex items-center gap-1 text-sm transition-opacity hover:opacity-70"
-          >
-            ← 返回实验场
-          </Link>
+        <div className="mx-auto max-w-7xl px-5 py-5">
           <h1 className="lab-body text-2xl font-bold" style={{ color: 'var(--lab-fg)' }}>
             人生 K 线图 / Life-Kline
           </h1>
-          <p className="mt-1 text-sm text-gray-600" style={{ fontFamily: 'var(--font-times)' }}>
+          <p className="mt-1 text-sm" style={{ color: 'var(--lab-muted)' }}>
             将玄学定性叙事转成结构化的 K 线与指标视图
           </p>
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-7xl gap-4 px-4 py-6">
+      <main className="mx-auto flex max-w-7xl gap-5 px-5 py-6">
         <ModeSidebar mode={mode} setMode={setMode} />
 
         <div className="min-w-0 flex-1">
@@ -91,13 +84,17 @@ export default function LifeKlineClient() {
             />
           )}
 
-          {mode === 'single' && single.loading && !single.result && <LoadingState text={single.loadingText} />}
-          {mode === 'hepan' && hepan.loading && !hepan.result && <LoadingState text={hepan.loadingText} />}
+          {mode === 'single' && single.loading && !single.result && (
+            <LoadingState text={single.loadingText} modeLabel="单人 Life-Kline" />
+          )}
+          {mode === 'hepan' && hepan.loading && !hepan.result && (
+            <LoadingState text={hepan.loadingText} modeLabel="合盘 Life-Kline" />
+          )}
 
           {mode === 'single' && single.instantBazi && !single.result && (
             <div className="space-y-4">
               <div className="lab-panel rounded-lg p-4">
-                <div className="lab-body mb-2 text-center text-sm text-gray-600">
+                <div className="lab-body mb-2 text-center text-sm" style={{ color: 'var(--lab-muted)' }}>
                   八字排盘结果已就绪，正在生成完整分析
                 </div>
               </div>

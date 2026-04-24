@@ -92,7 +92,7 @@ export default function KlineMainChart({ data, indicators, onSelect }: Props) {
         data: xLabels,
         axisLine: { lineStyle: { color: 'rgb(26, 35, 126)' } },
         axisLabel: {
-          fontFamily: 'Times New Roman, serif',
+          fontFamily: 'STKaiti, KaiTi, serif',
           fontSize: 12,
           rotate: 45,
           interval: xLabelInterval,
@@ -106,7 +106,7 @@ export default function KlineMainChart({ data, indicators, onSelect }: Props) {
         splitLine: {
           lineStyle: { color: 'rgba(26, 35, 126, 0.1)', type: 'dashed' },
         },
-        axisLabel: { fontFamily: 'Times New Roman, serif', fontSize: 12 },
+        axisLabel: { fontFamily: 'STKaiti, KaiTi, serif', fontSize: 12 },
       },
       dataZoom: [
         { type: 'inside', start: 0, end: 100 },

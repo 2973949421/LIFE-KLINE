@@ -21,6 +21,7 @@ import {
 } from '@/lib/domain/hepan-score';
 import { RELATION_LABELS } from '@/lib/domain/kline-constants';
 import { scoresToOHLCList, type Dimension, type Period } from '@/lib/domain/score-to-ohlc';
+import { isBailianConfigured } from '@/lib/server/env';
 import { runHepanKlineInference } from '@/lib/server/hepan-kline/service';
 
 interface TechnicalIndicators {
@@ -80,6 +81,20 @@ const DIMENSION_LABELS: Record<ApiDimension, string> = {
   emotion: '情感关系',
 };
 
+function findNearestValueIndex<T>(
+  values: T[],
+  currentIndex: number,
+  isValid: (value: T | undefined) => boolean,
+) {
+  for (let index = Math.min(currentIndex, values.length - 1); index >= 0; index -= 1) {
+    if (isValid(values[index])) {
+      return index;
+    }
+  }
+
+  return values.findIndex((value) => isValid(value));
+}
+
 function findCurrentIndex(timeline: TimelinePoint[], period: ApiPeriod): number {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -133,10 +148,13 @@ function generateTechnicalCommentary(
     indicators.ma20[currentIndex] ?? null,
   );
   const latestClose = closes[currentIndex] ?? closes[closes.length - 1] ?? 50;
-  const latestRsi = indicators.rsi[currentIndex];
-  const latestMacd = indicators.macd[currentIndex];
-  const latestKdj = indicators.kdj[currentIndex];
-  const latestBoll = indicators.boll[currentIndex];
+  const rsiIndex = findNearestValueIndex(indicators.rsi, currentIndex, (value) => value !== null && value !== undefined);
+  const kdjIndex = findNearestValueIndex(indicators.kdj, currentIndex, (value) => value?.k !== null && value?.k !== undefined);
+  const bollIndex = findNearestValueIndex(indicators.boll, currentIndex, (value) => value?.middle !== null && value?.middle !== undefined);
+  const latestRsi = rsiIndex >= 0 ? indicators.rsi[rsiIndex] : null;
+  const latestMacd = indicators.macd[currentIndex] ?? indicators.macd[indicators.macd.length - 1];
+  const latestKdj = kdjIndex >= 0 ? indicators.kdj[kdjIndex] : null;
+  const latestBoll = bollIndex >= 0 ? indicators.boll[bollIndex] : null;
 
   const recentMacdGolden = crossSignals.macd_golden.some((item) => item.index >= currentIndex - 3);
   const recentMacdDeath = crossSignals.macd_death.some((item) => item.index >= currentIndex - 3);
@@ -162,13 +180,17 @@ function generateTechnicalCommentary(
     ? 'KDJ 低位金叉，短期共振开始改善。'
     : recentKdjDeath
       ? 'KDJ 高位死叉，短期容易出现回落或分歧。'
-      : `KDJ 当前约为 K=${latestKdj?.k?.toFixed(0) ?? '--'}。`;
+      : latestKdj
+        ? `KDJ 当前约为 K=${latestKdj.k?.toFixed(0) ?? '--'}，短期共振保持观察。`
+        : 'KDJ 数据窗口仍在积累，暂不形成有效判断。';
 
   const rsiText = recentRsiOverbought
     ? 'RSI 提示阶段性过热，适合控制情绪预期。'
     : recentRsiOversold
       ? 'RSI 提示阶段性超卖，存在修复空间。'
-      : `RSI 当前约为 ${latestRsi?.toFixed(1) ?? '--'}。`;
+      : latestRsi !== null && latestRsi !== undefined
+        ? `RSI 当前约为 ${latestRsi.toFixed(1)}，关系强弱处于可观察区间。`
+        : 'RSI 数据窗口仍在积累，暂不形成有效判断。';
 
   const bollText = latestBoll
     ? `BOLL 中轨约为 ${latestBoll.middle?.toFixed(1) ?? '--'}，当前收盘为 ${latestClose.toFixed(1)}。`
@@ -193,6 +215,11 @@ function normalizeScore(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
+  // Check if Bailian API is configured
+  if (!isBailianConfigured()) {
+    return NextResponse.json({ error: 'Bailian API is not configured' }, { status: 503 });
+  }
+
   try {
     const body = await request.json();
     const {

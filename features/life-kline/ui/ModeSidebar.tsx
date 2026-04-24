@@ -19,7 +19,11 @@ export function ModeSidebar({ mode, setMode }: ModeSidebarProps) {
         <div className="lab-body text-sm font-medium" style={{ color: 'var(--lab-fg)' }}>
           单人 K 线
         </div>
-        {mode === 'single' && <div className="mt-1 text-xs" style={{ color: 'var(--lab-fg)' }}>●</div>}
+        {mode === 'single' && (
+          <div className="mt-1 text-xs" style={{ color: 'var(--lab-fg)' }}>
+            ●
+          </div>
+        )}
       </button>
 
       <button
@@ -33,8 +37,14 @@ export function ModeSidebar({ mode, setMode }: ModeSidebarProps) {
         <div className="lab-body text-sm font-medium" style={{ color: 'var(--lab-fg)' }}>
           合盘 K 线
         </div>
-        <div className="text-xs" style={{ color: 'var(--lab-muted)' }}>(测试中)</div>
-        {mode === 'hepan' && <div className="mt-1 text-xs" style={{ color: 'var(--lab-fg)' }}>●</div>}
+        <div className="text-xs" style={{ color: 'var(--lab-muted)' }}>
+          （测试中）
+        </div>
+        {mode === 'hepan' && (
+          <div className="mt-1 text-xs" style={{ color: 'var(--lab-fg)' }}>
+            ●
+          </div>
+        )}
       </button>
     </aside>
   );

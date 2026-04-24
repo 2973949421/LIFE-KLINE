@@ -28,25 +28,33 @@ export function SingleResultView({
   selectedIndex,
   setSelectedIndex,
 }: SingleResultViewProps) {
+  const periodLabel = PERIOD_NAMES[result.period] ?? result.period ?? '未知周期';
+
   return (
     <div className="space-y-4">
       <div className="lab-panel rounded-lg p-4">
         <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
           <div>
-            <span className="text-gray-600">维度：</span>
+            <span className="lab-body" style={{ color: 'var(--lab-muted)' }}>
+              维度：
+            </span>
             <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
               {DIMENSION_NAMES[result.dimension]}
             </span>
           </div>
           <div>
-            <span className="text-gray-600">周期：</span>
+            <span className="lab-body" style={{ color: 'var(--lab-muted)' }}>
+              周期：
+            </span>
             <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
-              {PERIOD_NAMES[result.period]}
+              {periodLabel}
             </span>
           </div>
           {result.lifespan && (
             <div>
-              <span className="text-gray-600">推算寿元：</span>
+              <span className="lab-body" style={{ color: 'var(--lab-muted)' }}>
+                推算寿元：
+              </span>
               <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
                 {result.lifespan.total_years} 年
               </span>
@@ -54,7 +62,9 @@ export function SingleResultView({
           )}
           {result.meta.birthHour && (
             <div>
-              <span className="text-gray-600">出生时辰：</span>
+              <span className="lab-body" style={{ color: 'var(--lab-muted)' }}>
+                出生时辰：
+              </span>
               <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
                 {result.meta.birthHour} ({result.meta.hourAttribute})
               </span>

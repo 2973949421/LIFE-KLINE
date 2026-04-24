@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
-import { env } from '@/lib/server/env';
+import { getBailianConfig } from '@/lib/server/env';
 import { paiPan, type BaZiResult } from '@/lib/domain/bazi';
 import { getHourInfo, type HourInfo } from '@/lib/domain/hour-map';
 
@@ -208,6 +208,9 @@ ${input.period === 'yearly' || input.period === 'year'
 }
 
 export async function runLifeKlineInference(input: LifeKlineRequestInput): Promise<LifeKlineInferenceResult> {
+  // Check Bailian API configuration first
+  const { apiKey, baseUrl, modelName } = getBailianConfig();
+
   const systemPrompt = await loadSkillPrompt();
   const birthYear = parseInt(input.birth.split('-')[0], 10);
   const birthMonth = parseInt(input.birth.split('-')[1], 10);
@@ -220,14 +223,14 @@ export async function runLifeKlineInference(input: LifeKlineRequestInput): Promi
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
-    const response = await fetch(`${env.bailianBaseUrl}/chat/completions`, {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${env.bailianApiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: env.bailianModelName,
+        model: modelName,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

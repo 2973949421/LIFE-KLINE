@@ -151,7 +151,7 @@ export default function ScoreDetailCard({ adjustments, baseScore, finalScore }: 
                     className="text-2xl font-bold min-w-[80px] text-right"
                     style={{
                       color: getScoreColor(detail.adjustment.score),
-                      fontFamily: 'Times New Roman, serif'
+                      fontFamily: 'STKaiti, KaiTi, serif'
                     }}
                   >
                     {detail.adjustment.score > 0 ? '+' : ''}{detail.adjustment.score.toFixed(2)}
@@ -198,7 +198,7 @@ export default function ScoreDetailCard({ adjustments, baseScore, finalScore }: 
               className="text-3xl font-bold"
               style={{
                 color: getScoreColor(adjustments.total_adjustment),
-                fontFamily: 'Times New Roman, serif'
+                fontFamily: 'STKaiti, KaiTi, serif'
               }}
             >
               {adjustments.total_adjustment > 0 ? '+' : ''}{adjustments.total_adjustment.toFixed(2)}

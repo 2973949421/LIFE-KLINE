@@ -48,7 +48,7 @@ export default function RSIChart({ data, timeline, onSelect }: Props) {
             value !== null ? (value >= 80 ? '超买' : value <= 20 ? '超卖' : '正常') : '-';
 
           return `
-            <div style="font-family: Times New Roman, serif;">
+            <div style="font-family: STKaiti, KaiTi, serif;">
               <div style="font-weight: bold;">${xLabels[index]}</div>
               <div>RSI: ${value?.toFixed(2) || '-'}</div>
               <div>${status}</div>
@@ -61,7 +61,7 @@ export default function RSIChart({ data, timeline, onSelect }: Props) {
         type: 'category',
         data: xLabels,
         axisLine: { lineStyle: { color: 'rgb(26, 35, 126)' } },
-        axisLabel: { fontSize: 12, rotate: 45, fontFamily: 'Times New Roman, serif', interval: xLabelInterval },
+        axisLabel: { fontSize: 12, rotate: 45, fontFamily: 'STKaiti, KaiTi, serif', interval: xLabelInterval },
       },
       yAxis: {
         type: 'value',

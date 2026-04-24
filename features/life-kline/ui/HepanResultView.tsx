@@ -20,6 +20,14 @@ interface HepanResultViewProps {
   analysisYearMonth: string;
 }
 
+function MetaLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="lab-body" style={{ color: 'var(--lab-muted)' }}>
+      {children}
+    </span>
+  );
+}
+
 export function HepanResultView({
   result,
   selectedIndex,
@@ -28,13 +36,14 @@ export function HepanResultView({
   analysisYearMonth,
 }: HepanResultViewProps) {
   const fallbackMonth = parseInt(analysisYearMonth.split('-')[1] || '1', 10);
+  const periodLabel = PERIOD_NAMES[result.period] ?? result.period ?? '未知周期';
 
   return (
     <div className="space-y-4">
       <div className="lab-panel rounded-lg p-4">
         <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-5">
           <div>
-            <span className="text-gray-600">关系：</span>
+            <MetaLabel>关系：</MetaLabel>
             <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
               {result.hepan_meta.relation_label}
             </span>
@@ -42,24 +51,24 @@ export function HepanResultView({
           {result.period === 'yearly' ? (
             <>
               <div>
-                <span className="text-gray-600">相识年份：</span>
+                <MetaLabel>相识年份：</MetaLabel>
                 <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
                   {result.hepan_meta.meet_year} 年
                 </span>
               </div>
               {result.meet_year_analysis && (
                 <div className="md:col-span-2">
-                  <span className="text-gray-600">AI 建议范围：</span>
+                  <MetaLabel>AI 建议范围：</MetaLabel>
                   <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
                     {result.meet_year_analysis.ai_suggested_range?.join('、')} 年
                   </span>
-                  <span className="ml-2 text-xs text-gray-500">
+                  <span className="ml-2 text-xs" style={{ color: 'var(--lab-muted)' }}>
                     （置信度: {(result.meet_year_analysis.confidence * 100).toFixed(0)}%）
                   </span>
                 </div>
               )}
               <div>
-                <span className="text-gray-600">共同寿元：</span>
+                <MetaLabel>共同寿元：</MetaLabel>
                 <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
                   {result.hepan_meta.common_lifespan} 年
                 </span>
@@ -68,7 +77,7 @@ export function HepanResultView({
           ) : (
             <>
               <div>
-                <span className="text-gray-600">分析时间：</span>
+                <MetaLabel>分析时间：</MetaLabel>
                 <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
                   {result.period === 'monthly'
                     ? `${result.timeline?.[0]?.year || analysisYear} 年全年`
@@ -76,33 +85,41 @@ export function HepanResultView({
                 </span>
               </div>
               <div className="md:col-span-2">
-                <span className="text-gray-600">相识年份：</span>
+                <MetaLabel>相识年份：</MetaLabel>
                 <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
                   {result.hepan_meta.meet_year} 年
                 </span>
-                <span className="ml-2 text-xs text-gray-500">（用于八字合盘参考）</span>
+                <span className="ml-2 text-xs" style={{ color: 'var(--lab-muted)' }}>
+                  （用于八字合盘参考）
+                </span>
               </div>
             </>
           )}
           <div>
-            <span className="text-gray-600">维度：</span>
+            <MetaLabel>维度：</MetaLabel>
             <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
               {DIMENSION_NAMES[result.dimension]}
             </span>
           </div>
           <div>
-            <span className="text-gray-600">周期：</span>
+            <MetaLabel>周期：</MetaLabel>
             <span className="font-medium" style={{ color: 'var(--lab-fg)' }}>
-              {PERIOD_NAMES[result.period]}
+              {periodLabel}
               {result.period !== 'yearly' && '（当前运势）'}
             </span>
           </div>
         </div>
 
         {result.period === 'yearly' && result.meet_year_analysis?.reasoning && (
-          <div className="lab-card-soft mt-3 rounded p-3 text-sm">
-            <span className="lab-body" style={{ color: 'var(--lab-fg)' }}>
-              提示：{result.meet_year_analysis.reasoning}
+          <div
+            className="mt-3 rounded p-3 text-sm"
+            style={{
+              background: 'rgba(26, 35, 126, 0.06)',
+              border: '1px solid rgba(26, 35, 126, 0.16)',
+            }}
+          >
+            <span style={{ color: 'var(--lab-fg)' }}>
+              温馨提示：{result.meet_year_analysis.reasoning}
             </span>
           </div>
         )}

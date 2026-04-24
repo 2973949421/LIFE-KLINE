@@ -51,7 +51,7 @@ export default function BOLLChart({ data, timeline, onSelect }: Props) {
           const point = data[index];
 
           return `
-            <div style="font-family: Times New Roman, serif;">
+            <div style="font-family: STKaiti, KaiTi, serif;">
               <div style="font-weight: bold;">${xLabels[index]}</div>
               <div>收盘: ${closes[index]}</div>
               <div>上轨: ${point.upper?.toFixed(2) || '-'}</div>
@@ -71,7 +71,7 @@ export default function BOLLChart({ data, timeline, onSelect }: Props) {
         type: 'category',
         data: xLabels,
         axisLine: { lineStyle: { color: 'rgb(26, 35, 126)' } },
-        axisLabel: { fontSize: 12, rotate: 45, fontFamily: 'Times New Roman, serif', interval: xLabelInterval },
+        axisLabel: { fontSize: 12, rotate: 45, fontFamily: 'STKaiti, KaiTi, serif', interval: xLabelInterval },
       },
       yAxis: {
         type: 'value',

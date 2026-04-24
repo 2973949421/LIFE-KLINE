@@ -12,6 +12,7 @@ import {
   identifyTrend,
 } from '@/lib/domain/ta-math';
 import { scoresToOHLCList, type Dimension, type Period } from '@/lib/domain/score-to-ohlc';
+import { isBailianConfigured } from '@/lib/server/env';
 import { runLifeKlineInference } from '@/lib/server/life-kline/service';
 
 interface TechnicalIndicators {
@@ -70,10 +71,24 @@ interface TimelinePoint {
 }
 
 const DIMENSION_LABELS: Record<DimensionType, string> = {
-  wealth: 'wealth',
-  life: 'life',
-  emotion: 'emotion',
+  wealth: '财富',
+  life: '生命状态',
+  emotion: '情感关系',
 };
+
+function findNearestValueIndex<T>(
+  values: T[],
+  currentIndex: number,
+  isValid: (value: T | undefined) => boolean,
+) {
+  for (let index = Math.min(currentIndex, values.length - 1); index >= 0; index -= 1) {
+    if (isValid(values[index])) {
+      return index;
+    }
+  }
+
+  return values.findIndex((value) => isValid(value));
+}
 
 function findCurrentIndex(timeline: TimelinePoint[], period: PeriodType): number {
   const now = new Date();
@@ -126,10 +141,13 @@ function generateTechnicalCommentary(
     indicators.ma20[currentIndex] ?? null,
   );
   const latestClose = closes[currentIndex] ?? closes[closes.length - 1] ?? 50;
-  const latestRsi = indicators.rsi[currentIndex];
-  const latestMacd = indicators.macd[currentIndex];
-  const latestKdj = indicators.kdj[currentIndex];
-  const latestBoll = indicators.boll[currentIndex];
+  const rsiIndex = findNearestValueIndex(indicators.rsi, currentIndex, (value) => value !== null && value !== undefined);
+  const kdjIndex = findNearestValueIndex(indicators.kdj, currentIndex, (value) => value?.k !== null && value?.k !== undefined);
+  const bollIndex = findNearestValueIndex(indicators.boll, currentIndex, (value) => value?.middle !== null && value?.middle !== undefined);
+  const latestRsi = rsiIndex >= 0 ? indicators.rsi[rsiIndex] : null;
+  const latestMacd = indicators.macd[currentIndex] ?? indicators.macd[indicators.macd.length - 1];
+  const latestKdj = kdjIndex >= 0 ? indicators.kdj[kdjIndex] : null;
+  const latestBoll = bollIndex >= 0 ? indicators.boll[bollIndex] : null;
 
   const recentMacdGolden = crossSignals.macd_golden.some((item) => item.index >= currentIndex - 3);
   const recentMacdDeath = crossSignals.macd_death.some((item) => item.index >= currentIndex - 3);
@@ -140,32 +158,36 @@ function generateTechnicalCommentary(
 
   const maText =
     maTrend === 'bullish'
-      ? `${label} trend is above the moving averages.`
+      ? `${label}维度位于均线偏强区间，阶段趋势仍有支撑。`
       : maTrend === 'bearish'
-        ? `${label} trend is below the moving averages.`
-        : `${label} trend is moving sideways around the averages.`;
+        ? `${label}维度仍受均线压制，短期宜降低预期。`
+        : `${label}维度围绕均线震荡，当前更适合观察节奏变化。`;
 
   const macdText = recentMacdGolden
-    ? 'MACD shows a recent golden cross.'
+    ? 'MACD 最近出现金叉，动能有转强迹象。'
     : recentMacdDeath
-      ? 'MACD shows a recent death cross.'
-      : `MACD histogram is ${(latestMacd?.macd ?? 0) >= 0 ? 'above' : 'below'} zero.`;
+      ? 'MACD 最近出现死叉，动能短期偏弱。'
+      : `MACD 柱体当前${(latestMacd?.macd ?? 0) >= 0 ? '位于零轴上方' : '位于零轴下方'}。`;
 
   const kdjText = recentKdjGolden
-    ? 'KDJ shows a low-position golden cross.'
+    ? 'KDJ 低位金叉，短期修复信号增强。'
     : recentKdjDeath
-      ? 'KDJ shows a high-position death cross.'
-      : `KDJ currently sits near K=${latestKdj?.k?.toFixed(0) ?? '--'}.`;
+      ? 'KDJ 高位死叉，短期存在回落压力。'
+      : latestKdj
+        ? `KDJ 当前约为 K=${latestKdj.k?.toFixed(0) ?? '--'}，短线节奏保持观察。`
+        : 'KDJ 数据窗口仍在积累，暂不形成有效判断。';
 
   const rsiText = recentRsiOverbought
-    ? 'RSI is near an overbought zone.'
+    ? 'RSI 接近过热区间，需警惕阶段性回落。'
     : recentRsiOversold
-      ? 'RSI is near an oversold zone.'
-      : `RSI is around ${latestRsi?.toFixed(1) ?? '--'}.`;
+      ? 'RSI 接近超卖区间，后续存在修复空间。'
+      : latestRsi !== null && latestRsi !== undefined
+        ? `RSI 当前约为 ${latestRsi.toFixed(1)}，强弱处于可观察区间。`
+        : 'RSI 数据窗口仍在积累，暂不形成有效判断。';
 
   const bollText = latestBoll
-    ? `BOLL middle band is near ${latestBoll.middle?.toFixed(1) ?? '--'}, latest close is ${latestClose.toFixed(1)}.`
-    : 'BOLL signal is currently limited.';
+    ? `BOLL 中轨约为 ${latestBoll.middle?.toFixed(1) ?? '--'}，当前收盘为 ${latestClose.toFixed(1)}。`
+    : 'BOLL 数据窗口仍在积累，当前以价格波动本身为主。';
 
   return {
     ma_trend: maText,
@@ -177,6 +199,11 @@ function generateTechnicalCommentary(
 }
 
 export async function POST(request: NextRequest) {
+  // Check if Bailian API is configured
+  if (!isBailianConfigured()) {
+    return NextResponse.json({ error: 'Bailian API is not configured' }, { status: 503 });
+  }
+
   try {
     const body = (await request.json()) as LifeKlineRequestBody;
     const { birth, birthTime, gender, dimension, period, targetYear, targetMonth } = body;
@@ -296,7 +323,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       dimension: aiResult.dimension,
-      period: aiResult.period,
+      period: mappedPeriod,
       lifespan: aiResult.lifespan,
       bazi: {
         nianZhu: bazi.formatted.nianZhu,
