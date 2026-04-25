@@ -31,6 +31,7 @@ export interface HepanAiTimelineEntry extends Record<string, unknown> {
   day?: number;
   score?: number;
   analysis?: string;
+  confidence?: number;
 }
 
 export interface HepanAiResult {
@@ -83,72 +84,71 @@ function generateUserPrompt(
   secondaryBazi: BaZiResult,
 ) {
   const dimensionNames: Record<string, string> = {
-    wealth: '财富运势',
-    life: '生命健康',
-    emotion: '情感婚姻',
+    wealth: 'wealth compatibility',
+    life: 'life compatibility',
+    emotion: 'emotional compatibility',
   };
   const periodNames: Record<string, string> = {
-    yearly: '年K',
-    year: '年K',
-    monthly: '月K',
-    month: '月K',
-    daily: '日K',
-    day: '日K',
+    yearly: 'yearly',
+    year: 'yearly',
+    monthly: 'monthly',
+    month: 'monthly',
+    daily: 'daily',
+    day: 'daily',
   };
 
   const analysisYear = input.analysisYear ?? new Date().getFullYear();
   const analysisMonth = input.analysisMonth ?? new Date().getMonth() + 1;
   const analysisYears = input.analysisYears ?? 50;
 
-  let timeRangeInstruction = `请生成从 ${input.meetYear} 年起连续 ${analysisYears} 年的年K时间序列。`;
-  let timelineInstruction = `timeline 必须输出 ${analysisYears} 条记录，从 ${input.meetYear} 年开始逐年递增。`;
+  let timeRangeInstruction = `Produce a yearly timeline starting in ${input.meetYear} for ${analysisYears} consecutive years.`;
+  let timelineInstruction = `timeline must contain ${analysisYears} entries with year increasing from ${input.meetYear}.`;
 
   if (input.period === 'monthly' || input.period === 'month') {
-    timeRangeInstruction = `请生成 ${analysisYear} 年 1 月到 12 月的月K时间序列。`;
-    timelineInstruction = `timeline 必须输出 12 条记录，month 为 1-12。`;
+    timeRangeInstruction = `Produce a monthly timeline for January to December of ${analysisYear}.`;
+    timelineInstruction = 'timeline must contain 12 entries with month values from 1 to 12.';
   }
 
   if (input.period === 'daily' || input.period === 'day') {
-    timeRangeInstruction = `请生成 ${analysisYear} 年 ${analysisMonth} 月的日K时间序列，按 30 天处理。`;
-    timelineInstruction = `timeline 必须输出 30 条记录，month 固定为 ${analysisMonth}，day 为 1-30。`;
+    timeRangeInstruction = `Produce a daily timeline for ${analysisYear}-${analysisMonth}, using 30 days.`;
+    timelineInstruction = `timeline must contain 30 entries, month fixed to ${analysisMonth}, day from 1 to 30.`;
   }
 
-  return `
-你现在要为“合盘 K 线”生成严格 JSON。
+  return `You are generating strict JSON for a relationship compatibility K-line analysis.
 
-合盘信息：
-- 关系类型：${RELATION_LABELS[input.relationType] || input.relationType}
-- 相识年份：${input.meetYear}
-- 分析维度：${dimensionNames[input.dimension] || input.dimension}
-- 时间周期：${periodNames[input.period] || input.period}
+Relationship context:
+- relation type: ${RELATION_LABELS[input.relationType] || input.relationType}
+- meet year: ${input.meetYear}
+- dimension: ${dimensionNames[input.dimension] || input.dimension}
+- period: ${periodNames[input.period] || input.period}
 
-主盘八字摘要：
-- 年柱：${primaryBazi.formatted.nianZhu}
-- 月柱：${primaryBazi.formatted.yueZhu}
-- 日柱：${primaryBazi.formatted.riZhu}
-- 时柱：${primaryBazi.formatted.shiZhu}
-- 日主五行：${primaryBazi.riZhuWuXing}${primaryBazi.riZhuYinYang}
-- 旺衰：${primaryBazi.wangShuai}
+Primary BaZi summary:
+- year pillar: ${primaryBazi.formatted.nianZhu}
+- month pillar: ${primaryBazi.formatted.yueZhu}
+- day pillar: ${primaryBazi.formatted.riZhu}
+- hour pillar: ${primaryBazi.formatted.shiZhu}
+- day master element: ${primaryBazi.riZhuWuXing}${primaryBazi.riZhuYinYang}
+- strength: ${primaryBazi.wangShuai}
 
-辅盘八字摘要：
-- 年柱：${secondaryBazi.formatted.nianZhu}
-- 月柱：${secondaryBazi.formatted.yueZhu}
-- 日柱：${secondaryBazi.formatted.riZhu}
-- 时柱：${secondaryBazi.formatted.shiZhu}
-- 日主五行：${secondaryBazi.riZhuWuXing}${secondaryBazi.riZhuYinYang}
-- 旺衰：${secondaryBazi.wangShuai}
+Secondary BaZi summary:
+- year pillar: ${secondaryBazi.formatted.nianZhu}
+- month pillar: ${secondaryBazi.formatted.yueZhu}
+- day pillar: ${secondaryBazi.formatted.riZhu}
+- hour pillar: ${secondaryBazi.formatted.shiZhu}
+- day master element: ${secondaryBazi.riZhuWuXing}${secondaryBazi.riZhuYinYang}
+- strength: ${secondaryBazi.wangShuai}
 
-输出要求：
-1. 只输出一个 JSON 对象，不要输出额外解释。
-2. score 必须是 0-100 的整数。
-3. analysis 必须是简短中文句子。
-4. 必须包含 meet_year_analysis、hepan_meta、timeline、global_analysis。
-5. hepan_meta.common_lifespan 必须给出合理整数。
+Output requirements:
+1. Return exactly one JSON object and nothing else.
+2. The JSON must include meet_year_analysis, hepan_meta, timeline, and global_analysis.
+3. timeline is primarily narrative. Each entry must include the correct date fields for the requested period and a short Chinese analysis sentence.
+4. score is optional. If you include score, keep it conservative and treat it as a weak narrative hint only.
+5. Do not produce exaggerated patterns such as a long all-high plateau, a one-way collapse, or repeated ceiling values.
 6. ${timeRangeInstruction}
 7. ${timelineInstruction}
-8. 相邻时间点 score 差异尽量不要超过 20。
+8. hepan_meta.common_lifespan must be a reasonable integer.
 
-JSON 结构示例：
+JSON example:
 {
   "hepan_meta": {
     "common_lifespan": 78
@@ -157,32 +157,28 @@ JSON 结构示例：
     "user_input": ${input.meetYear},
     "ai_suggested_range": [${Math.max(input.meetYear - 2, 1900)}, ${Math.max(input.meetYear - 1, 1900)}, ${input.meetYear}, ${input.meetYear + 1}, ${input.meetYear + 2}],
     "best_guess": ${input.meetYear},
-    "reasoning": "根据双方八字与相识阶段推断，此年份附近缘分最强。",
+    "reasoning": "根据双方八字与相识阶段推断，此年份附近缘分更容易建立。",
     "confidence": 0.78
   },
   "timeline": [
     {
       "year": ${input.meetYear},
-      "analysis": "关系建立，互动逐步升温",
-      "score": 72
+      "analysis": "关系建立，互动开始升温"
     }
   ],
   "global_analysis": {
-    "dimension_analysis": "整体关系基础稳定，后续走势仍受双方互动影响。",
+    "dimension_analysis": "整体关系基础存在协同，也会随阶段变化出现起伏。",
     "pattern_match": {
-      "primary_pattern": "稳中有升",
+      "primary_pattern": "稳中有波动",
       "confidence": 0.76
     },
-    "key_insights": "适合关注关键年份的情绪与节奏变化。"
+    "key_insights": "适合结合关键年份与互动节奏来理解关系变化。"
   }
-}
-`;
+}`;
 }
 
 export async function runHepanKlineInference(input: HepanKlineRequestInput): Promise<HepanInferenceResult> {
-  // Check Bailian API configuration first
   const { apiKey, baseUrl, modelName } = getBailianConfig();
-
   const systemPrompt = await loadSkillPrompt();
 
   const primaryBirthYear = parseInt(input.primary.birth.split('-')[0], 10);
@@ -226,7 +222,7 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
     day: secondaryLunar.getDay(),
   };
 
-  const adjustedMeetYear = adjustMeetYear(input.meetYear, primaryBazi, secondaryBazi);
+  const adjustedMeetYear = adjustMeetYear(input.meetYear, primaryBirthYear, secondaryBirthYear);
   const userPrompt = generateUserPrompt({ ...input, meetYear: adjustedMeetYear }, primaryBazi, secondaryBazi);
 
   const controller = new AbortController();
@@ -260,7 +256,7 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
     const jsonText = extractJsonBlock(content);
 
     if (!jsonText) {
-      throw new Error('AI 返回格式错误，无法解析 JSON');
+      throw new Error('AI returned invalid content: JSON block not found');
     }
 
     const aiResult = JSON.parse(jsonText) as HepanAiResult;

@@ -639,18 +639,18 @@ export function calcCommonLifespan(
  */
 export function adjustMeetYear(
   inputYear: number,
-  mainBazi: BaZiResult,
-  auxBazi: BaZiResult
+  mainBirthYear: number,
+  auxBirthYear: number
 ): number {
   // 简化实现：检查输入年份是否有桃花特征
   // 完整实现需要流年分析
 
   // 检查是否在两人年龄合理范围内
-  const mainBirthYear = parseInt(mainBazi.formatted.nianZhu);
-  const auxBirthYear = parseInt(auxBazi.formatted.nianZhu);
+  const normalizedMainBirthYear = mainBirthYear;
+  const normalizedAuxBirthYear = auxBirthYear;
 
   // 相识年份必须晚于两人出生
-  const minYear = Math.max(mainBirthYear, auxBirthYear);
+  const minYear = Math.max(normalizedMainBirthYear, normalizedAuxBirthYear);
 
   if (inputYear < minYear) {
     return minYear;

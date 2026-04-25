@@ -13,14 +13,21 @@ import {
 } from '@/lib/domain/ta-math';
 import { getHourInfo } from '@/lib/domain/hour-map';
 import {
-  applyHepanAdjustment,
   calcHepanAdjustments,
   type Dimension as HepanDimension,
-  type HepanAdjustments,
   type RelationType,
 } from '@/lib/domain/hepan-score';
+import {
+  buildFallbackHepanAnalysis,
+  buildHepanAiNarrativeLookup,
+  buildHepanTimelineScaffold,
+  computeLocalHepanBaseScore,
+  getHepanTimelineKey,
+} from '@/lib/domain/hepan-local-timeline';
+import { buildHepanScoreSequence } from '@/lib/domain/hepan-sequence';
 import { RELATION_LABELS } from '@/lib/domain/kline-constants';
-import { scoresToOHLCList, type Dimension, type Period } from '@/lib/domain/score-to-ohlc';
+import { scoresToHepanOHLCList } from '@/lib/domain/score-to-ohlc-hepan';
+import { type Dimension, type Period } from '@/lib/domain/score-to-ohlc';
 import { isBailianConfigured } from '@/lib/server/env';
 import { runHepanKlineInference } from '@/lib/server/hepan-kline/service';
 
@@ -71,14 +78,15 @@ interface MacdSeriesPoint {
 
 type ApiDimension = 'wealth' | 'life' | 'emotion';
 type ApiPeriod = 'daily' | 'monthly' | 'yearly';
+
 const RELATION_TYPES: RelationType[] = ['couple', 'business', 'parent_child', 'other'];
 const DIMENSIONS: ApiDimension[] = ['wealth', 'life', 'emotion'];
 const PERIODS: ApiPeriod[] = ['daily', 'monthly', 'yearly'];
 
 const DIMENSION_LABELS: Record<ApiDimension, string> = {
-  wealth: '财富',
-  life: '生命状态',
-  emotion: '情感关系',
+  wealth: 'wealth',
+  life: 'life',
+  emotion: 'emotion',
 };
 
 function findNearestValueIndex<T>(
@@ -165,36 +173,36 @@ function generateTechnicalCommentary(
 
   const maText =
     maTrend === 'bullish'
-      ? `${relationLabel}在当前${label}维度上仍处于均线偏强区间。`
+      ? `${relationLabel} stays above the key moving averages in the ${label} view.`
       : maTrend === 'bearish'
-        ? `${relationLabel}在当前${label}维度上仍受均线压制，宜降低预期。`
-        : `${relationLabel}在当前${label}维度上仍以震荡整理为主。`;
+        ? `${relationLabel} remains under moving-average pressure in the ${label} view.`
+        : `${relationLabel} is consolidating around the moving averages in the ${label} view.`;
 
   const macdText = recentMacdGolden
-    ? 'MACD 最近出现黄金交叉，关系节奏有回暖迹象。'
+    ? 'MACD recently formed a golden cross, suggesting a short-term recovery window.'
     : recentMacdDeath
-      ? 'MACD 最近出现死亡交叉，关系节奏短期偏弱。'
-      : `MACD 当前${(latestMacd?.macd ?? 0) >= 0 ? '位于零轴上方' : '位于零轴下方'}。`;
+      ? 'MACD recently formed a death cross, suggesting short-term pressure.'
+      : `MACD is currently ${(latestMacd?.macd ?? 0) >= 0 ? 'above' : 'below'} the zero line.`;
 
   const kdjText = recentKdjGolden
-    ? 'KDJ 低位金叉，短期共振开始改善。'
+    ? 'KDJ recently turned upward and shows improving short-term rhythm.'
     : recentKdjDeath
-      ? 'KDJ 高位死叉，短期容易出现回落或分歧。'
+      ? 'KDJ recently turned downward, so a pullback remains possible.'
       : latestKdj
-        ? `KDJ 当前约为 K=${latestKdj.k?.toFixed(0) ?? '--'}，短期共振保持观察。`
-        : 'KDJ 数据窗口仍在积累，暂不形成有效判断。';
+        ? `KDJ is around K=${latestKdj.k?.toFixed(0) ?? '--'}, with mixed short-term momentum.`
+        : 'KDJ is still accumulating enough data to form a clearer signal.';
 
   const rsiText = recentRsiOverbought
-    ? 'RSI 提示阶段性过热，适合控制情绪预期。'
+    ? 'RSI suggests the sequence is temporarily overheated.'
     : recentRsiOversold
-      ? 'RSI 提示阶段性超卖，存在修复空间。'
+      ? 'RSI suggests the sequence is temporarily oversold and may repair.'
       : latestRsi !== null && latestRsi !== undefined
-        ? `RSI 当前约为 ${latestRsi.toFixed(1)}，关系强弱处于可观察区间。`
-        : 'RSI 数据窗口仍在积累，暂不形成有效判断。';
+        ? `RSI is around ${latestRsi.toFixed(1)}, still within an observable middle zone.`
+        : 'RSI is still accumulating data.';
 
   const bollText = latestBoll
-    ? `BOLL 中轨约为 ${latestBoll.middle?.toFixed(1) ?? '--'}，当前收盘为 ${latestClose.toFixed(1)}。`
-    : 'BOLL 数据仍不足，当前以价格波动本身为主。';
+    ? `BOLL middle band is around ${latestBoll.middle?.toFixed(1) ?? '--'}, while the latest close is ${latestClose.toFixed(1)}.`
+    : 'BOLL does not yet have enough data.';
 
   return {
     ma_trend: maText,
@@ -205,17 +213,7 @@ function generateTechnicalCommentary(
   };
 }
 
-function normalizeScore(value: unknown) {
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) {
-    return 50;
-  }
-
-  return Math.max(0, Math.min(100, Math.round(parsed)));
-}
-
 export async function POST(request: NextRequest) {
-  // Check if Bailian API is configured
   if (!isBailianConfigured()) {
     return NextResponse.json({ error: 'Bailian API is not configured' }, { status: 503 });
   }
@@ -244,20 +242,29 @@ export async function POST(request: NextRequest) {
       !dimension ||
       !period
     ) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
     if (!RELATION_TYPES.includes(relationType as RelationType)) {
-      return NextResponse.json({ error: '关系类型无效' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid relationType' }, { status: 400 });
     }
 
     if (!DIMENSIONS.includes(dimension as ApiDimension)) {
-      return NextResponse.json({ error: '分析维度无效' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid dimension' }, { status: 400 });
     }
 
-    const normalizedPeriod = (period === 'year' ? 'yearly' : period === 'month' ? 'monthly' : period === 'day' ? 'daily' : period) as ApiPeriod;
+    const normalizedPeriod = (
+      period === 'year'
+        ? 'yearly'
+        : period === 'month'
+          ? 'monthly'
+          : period === 'day'
+            ? 'daily'
+            : period
+    ) as ApiPeriod;
+
     if (!PERIODS.includes(normalizedPeriod)) {
-      return NextResponse.json({ error: '时间周期无效' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
     }
 
     const normalizedRelationType = relationType as RelationType;
@@ -275,22 +282,28 @@ export async function POST(request: NextRequest) {
           ? parseInt(analysisYearMonth.split('-')[0] ?? '', 10)
           : undefined;
 
-    const { aiResult, primaryBazi, secondaryBazi, adjustedMeetYear, primaryBirthYear, secondaryBirthYear, primaryBirthHour, secondaryBirthHour, primaryLunarDates, secondaryLunarDates } =
-      await runHepanKlineInference({
-        primary,
-        secondary,
-        relationType: normalizedRelationType,
-        meetYear,
-        analysisYears,
-        analysisYear: parsedAnalysisYear,
-        analysisMonth: parsedAnalysisMonth,
-        dimension: normalizedDimension,
-        period: normalizedPeriod,
-      });
-
-    if (!aiResult.timeline?.length) {
-      throw new Error('AI 返回的 timeline 为空');
-    }
+    const {
+      aiResult,
+      primaryBazi,
+      secondaryBazi,
+      adjustedMeetYear,
+      primaryBirthYear,
+      secondaryBirthYear,
+      primaryBirthHour,
+      secondaryBirthHour,
+      primaryLunarDates,
+      secondaryLunarDates,
+    } = await runHepanKlineInference({
+      primary,
+      secondary,
+      relationType: normalizedRelationType,
+      meetYear,
+      analysisYears,
+      analysisYear: parsedAnalysisYear,
+      analysisMonth: parsedAnalysisMonth,
+      dimension: normalizedDimension,
+      period: normalizedPeriod,
+    });
 
     const dimensionMap: Record<string, Dimension> = {
       wealth: 'wealth',
@@ -309,34 +322,73 @@ export async function POST(request: NextRequest) {
     };
     const mappedPeriod = (periodMap[normalizedPeriod] || 'yearly') as ApiPeriod;
 
-    const normalizedTimeline = aiResult.timeline.map((entry) => {
-      const year = Number(entry.year);
-      const month = typeof entry.month === 'number' ? entry.month : undefined;
-      const day = typeof entry.day === 'number' ? entry.day : undefined;
-      const agePrimary = typeof entry.age_primary === 'number' ? entry.age_primary : year - primaryBirthYear;
-      const ageSecondary = typeof entry.age_secondary === 'number' ? entry.age_secondary : year - secondaryBirthYear;
-      const adjustments = calcHepanAdjustments(primaryBazi, secondaryBazi, normalizedRelationType, hepanDimension, agePrimary, {
-        primary: primaryLunarDates,
-        secondary: secondaryLunarDates,
+    const timelineScaffold = buildHepanTimelineScaffold({
+      period: mappedPeriod,
+      meetYear: adjustedMeetYear,
+      analysisYears,
+      analysisYear: parsedAnalysisYear,
+      analysisMonth: parsedAnalysisMonth,
+      primaryBirthYear,
+      secondaryBirthYear,
+    });
+    const aiNarrativeLookup = buildHepanAiNarrativeLookup(aiResult.timeline ?? []);
+
+    const normalizedTimeline = timelineScaffold.map((entry) => {
+      const aiNarrative = aiNarrativeLookup.get(getHepanTimelineKey(entry));
+      const adjustments = calcHepanAdjustments(
+        primaryBazi,
+        secondaryBazi,
+        normalizedRelationType,
+        hepanDimension,
+        entry.age_primary,
+        {
+          primary: primaryLunarDates,
+          secondary: secondaryLunarDates,
+        },
+      );
+      const baseScore = computeLocalHepanBaseScore(entry, {
+        period: mappedPeriod,
+        dimension: hepanDimension,
+        relationType: normalizedRelationType,
+        meetYear: adjustedMeetYear,
       });
-      const adjustedScore = applyHepanAdjustment(normalizeScore(entry.score), adjustments as HepanAdjustments);
+      const analysis =
+        typeof aiNarrative?.analysis === 'string' && aiNarrative.analysis.trim().length > 0
+          ? aiNarrative.analysis
+          : buildFallbackHepanAnalysis(entry, baseScore, hepanDimension);
 
       return {
-        year,
-        month,
-        day,
-        analysis: typeof entry.analysis === 'string' ? entry.analysis : '合盘分析生成中',
-        confidence: typeof entry.confidence === 'number' ? entry.confidence : undefined,
-        age_primary: agePrimary,
-        age_secondary: ageSecondary,
-        base_score: normalizeScore(entry.score),
-        adjusted_score: adjustedScore,
+        year: entry.year,
+        month: entry.month,
+        day: entry.day,
+        analysis,
+        confidence: typeof aiNarrative?.confidence === 'number' ? aiNarrative.confidence : undefined,
+        age_primary: entry.age_primary,
+        age_secondary: entry.age_secondary,
+        base_score: baseScore,
         adjustments,
       };
     });
 
-    const adjustedScores = normalizedTimeline.map((entry) => entry.adjusted_score);
-    const ohlcList = scoresToOHLCList(adjustedScores, hepanDimension, mappedPeriod, 50);
+    const sequencePoints = buildHepanScoreSequence(
+      normalizedTimeline.map((entry) => ({
+        baseScore: entry.base_score,
+        year: entry.year,
+        month: entry.month,
+        day: entry.day,
+        agePrimary: entry.age_primary,
+        ageSecondary: entry.age_secondary,
+        rawAdjustments: entry.adjustments,
+      })),
+      mappedPeriod,
+      hepanDimension,
+      normalizedRelationType,
+    );
+
+    const adjustedScores = sequencePoints.map((entry) => entry.score);
+    const initialClose =
+      adjustedScores.length > 0 ? Math.round((50 + (adjustedScores[0] ?? 50)) / 2) : 50;
+    const ohlcList = scoresToHepanOHLCList(adjustedScores, hepanDimension, mappedPeriod, initialClose);
 
     const timeline: TimelinePoint[] = normalizedTimeline.map((entry, index) => ({
       year: entry.year,
@@ -345,9 +397,9 @@ export async function POST(request: NextRequest) {
       age_primary: entry.age_primary,
       age_secondary: entry.age_secondary,
       analysis: entry.analysis,
-      score: entry.adjusted_score,
+      score: sequencePoints[index]?.score ?? entry.base_score,
       confidence: entry.confidence,
-      hepan_adjustment: entry.adjustments.total_adjustment,
+      hepan_adjustment: sequencePoints[index]?.appliedAdjustment ?? entry.adjustments.total_adjustment,
       o: ohlcList[index]?.o ?? 50,
       h: ohlcList[index]?.h ?? 55,
       l: ohlcList[index]?.l ?? 45,
@@ -413,7 +465,10 @@ export async function POST(request: NextRequest) {
     };
 
     const currentIndex = findCurrentIndex(timeline, mappedPeriod);
-    const currentAdjustments = normalizedTimeline[currentIndex]?.adjustments ?? normalizedTimeline[timeline.length - 1]?.adjustments;
+    const currentAdjustments =
+      normalizedTimeline[currentIndex]?.adjustments ?? normalizedTimeline[timeline.length - 1]?.adjustments;
+    const currentSequencePoint =
+      sequencePoints[currentIndex] ?? sequencePoints[sequencePoints.length - 1] ?? null;
     const technicalCommentary = generateTechnicalCommentary(
       technicalIndicators,
       crossSignals,
@@ -483,12 +538,17 @@ export async function POST(request: NextRequest) {
         user_input: aiResult.meet_year_analysis?.user_input ?? meetYear,
         ai_suggested_range: aiResult.meet_year_analysis?.ai_suggested_range ?? [adjustedMeetYear],
         best_guess: aiResult.meet_year_analysis?.best_guess ?? adjustedMeetYear,
-        reasoning: aiResult.meet_year_analysis?.reasoning ?? '当前结果以输入相识年份为主，结合八字结构做轻微校准。',
+        reasoning:
+          aiResult.meet_year_analysis?.reasoning ??
+          'The current result keeps the user-provided meet year and applies a light structure-based adjustment.',
         confidence: aiResult.meet_year_analysis?.confidence ?? 0.7,
       },
       hepan_adjustments_detail: currentAdjustments,
       hepan_adjustments_summary: {
-        current_total_adjustment: currentAdjustments?.total_adjustment ?? 0,
+        current_total_adjustment: currentSequencePoint?.appliedAdjustment ?? currentAdjustments?.total_adjustment ?? 0,
+        structural_adjustment: currentSequencePoint?.structuralAdjustment ?? 0,
+        dynamic_adjustment: currentSequencePoint?.dynamicAdjustment ?? 0,
+        temporal_adjustment: currentSequencePoint?.temporalRhythm ?? 0,
       },
       dimension: normalizedDimension,
       period: mappedPeriod,
@@ -516,17 +576,17 @@ export async function POST(request: NextRequest) {
       },
       global_analysis:
         aiResult.global_analysis ?? {
-          dimension_analysis: '合盘结果已生成，但整体分析字段为空。',
+          dimension_analysis: 'The relationship rhythm is generated locally and then interpreted with AI narrative context.',
           pattern_match: {
-            primary_pattern: '待补充',
+            primary_pattern: 'stable with fluctuation',
             confidence: 0.5,
           },
-          key_insights: '建议结合时间轴与技术指标综合判断。',
+          key_insights: 'Watch the changing cadence instead of treating the entire sequence as a single uptrend or downtrend.',
         },
       technical_commentary: technicalCommentary,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '合盘分析失败，请稍后重试';
+    const message = error instanceof Error ? error.message : 'Failed to generate hepan analysis';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

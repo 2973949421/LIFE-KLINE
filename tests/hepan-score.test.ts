@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // Note: This test file uses inline implementations to avoid Node test runner
 // module resolution issues with the full import chain.
@@ -102,6 +104,20 @@ describe('hepan-score', () => {
       const result1 = applyHepanAdjustment(input.baseScore, { total_adjustment: input.total_adjustment });
       const result2 = applyHepanAdjustment(input.baseScore, { total_adjustment: input.total_adjustment });
       assert.strictEqual(result1, result2, 'same inputs should produce same output');
+    });
+  });
+
+  describe('adjustMeetYear', () => {
+    it('uses real birth years instead of parsing formatted nianZhu', () => {
+      const source = fs.readFileSync(
+        path.join(process.cwd(), 'lib/domain/hepan-score.ts'),
+        'utf8',
+      );
+
+      assert.ok(source.includes('mainBirthYear: number'));
+      assert.ok(source.includes('auxBirthYear: number'));
+      assert.ok(!source.includes('parseInt(mainBazi.formatted.nianZhu)'));
+      assert.ok(!source.includes('parseInt(auxBazi.formatted.nianZhu)'));
     });
   });
 });
