@@ -10,7 +10,6 @@
     "test:run": "node --test --experimental-strip-types tests/**/*.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.47",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",
     "lunar-javascript": "^1.7.7",

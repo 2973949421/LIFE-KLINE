@@ -1,96 +1,95 @@
-# lifeKLINE
+# LifeKLINE
 
-人生 K 线图 - 基于八字命理的人生运势量化系统
+LifeKLINE is a standalone full-stack Next.js application for Life-Kline and Hepan-Kline analysis. It converts BaZi-based qualitative interpretation into structured K-line timelines, technical indicators, and narrative summaries.
 
-## 功能
+Production site: [https://labklife.lightinglab.top](https://labklife.lightinglab.top)
 
-- 单人 Life-Kline 分析：基于八字生成人生运势 K 线图
-- Hepan 合盘分析：双人八字合盘，分析关系运势
-- 多维度分析：财富运势、生命健康、情感婚恋
-- 多周期视图：年K、月K、日K
-- 技术指标展示：MACD、KDJ、RSI、BOLL 等
-- 即时八字排盘：无需 AI 的本地排盘功能
+## Features
 
-## 本地开发
+- Single-person Life-Kline analysis
+- Dual-person Hepan-Kline analysis
+- BaZi calculation without calling AI
+- K-line views for yearly, monthly, and daily periods
+- Technical indicators including `MACD`, `KDJ`, `RSI`, and `BOLL`
+- Structured AI prompt files stored in-repo
+- Standalone deployment on Vercel
+
+## Tech Stack
+
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- ECharts
+- `lunar-javascript`
+
+## Local Development
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-开发服务器启动后访问 http://localhost:3000
+Then open [http://localhost:3000](http://localhost:3000).
 
-## 测试
+## Environment Variables
 
-```bash
-pnpm test:run
+Copy `.env.example` to `.env.local` and fill in the real values:
+
+```env
+ALI_BAILIAN_API_KEY=
+ALI_BAILIAN_BASE_URL=
+ALI_BAILIAN_MODEL_NAME=qwen-max
 ```
 
-## 构建
+Notes:
 
-```bash
-pnpm build
-```
+- `ALI_BAILIAN_API_KEY` and `ALI_BAILIAN_BASE_URL` are required
+- `.env.local` must never be committed
+- when Bailian is not configured, the analysis APIs return `503` instead of failing later with a generic `500`
 
-## 代码检查
+## Quality Checks
 
 ```bash
 pnpm lint
+pnpm test:run
+pnpm build
 ```
 
-## 环境变量
+Current test coverage includes:
 
-本项目需要配置以下环境变量：
+- BaZi calculation
+- Hepan score rules
+- TA math utilities
+- score-to-OHLC conversion
+- prompt file existence/loading
+- route validation for bad requests
 
-```env
-# Bailian LLM API (必需)
-ALI_BAILIAN_API_KEY=        # 百炼 API Key
-ALI_BAILIAN_BASE_URL=       # 百炼 API Base URL
-ALI_BAILIAN_MODEL_NAME=qwen-max  # 模型名称
+## Deployment
 
-# Site URLs (可选)
-NEXT_PUBLIC_SITE_URL=https://labklife.lightinglab.top  # 本站 URL
-NEXT_PUBLIC_PERSON_SITE_LAB_URL=https://lightinglab.top/lab  # 返回 LAB 链接
+Recommended deployment target: Vercel.
+
+1. Push the repository to GitHub
+2. Import the project into Vercel
+3. Configure the Bailian environment variables in Vercel project settings
+4. Deploy
+5. Bind the production domain `labklife.lightinglab.top` if needed
+
+## Project Structure
+
+```text
+app/                         Next.js app router and API routes
+components/life-kline/       charts and result components
+content/prompts/             AI prompt sources
+features/life-kline/         feature-layer hooks, ui, constants, types
+lib/domain/                  BaZi, Hepan, TA, scoring, K-line logic
+lib/server/                  server-side inference and env helpers
+tests/                       node test suites
 ```
 
-### 本地配置
+## Maintenance Boundary
 
-1. 复制 `.env.example` 为 `.env.local`
-2. 填入真实的 API Key 和 Base URL
-3. **注意：不要提交 `.env.local` 到 Git**
-
-## Vercel 部署
-
-1. 将本仓库推送到 GitHub
-2. 在 Vercel 中导入该仓库
-3. 在 Vercel 项目设置中配置环境变量
-4. 绑定自定义域名 `labklife.lightinglab.top`
-
-## 安全注意事项
-
-- **不要提交真实 API Key**：`.env.local` 已被 `.gitignore` 忽略
-- API 未配置时会返回 503 错误，不会尝试无效请求
-- 所有 API 请求在服务端执行，Key 不会暴露到客户端
-
-## 项目结构
-
-```
-├─ app/                    # Next.js App Router
-│  ├─ page.tsx             # 首页
-│  ├─ layout.tsx           # 布局
-│  └─ api/                 # API 路由
-├─ features/life-kline/    # 功能模块
-│  ├─ ui/                  # UI 组件
-│  ├─ hooks/               # React Hooks
-│  ├─ types.ts             # 类型定义
-│  └─ constants.ts         # 常量
-├─ components/life-kline/  # 图表等组件
-├─ lib/
-│  ├─ domain/              # 域名逻辑（八字、技术指标等）
-│  └─ server/              # 服务端逻辑（AI 调用等）
-├─ content/prompts/        # AI 提示词
-└─ tests/                  # 测试文件
-```
+This repository is now the independent source of truth for LifeKLINE. It is deployed and maintained separately from the personal site.
 
 ## License
 

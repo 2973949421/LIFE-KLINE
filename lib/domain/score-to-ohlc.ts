@@ -19,10 +19,6 @@ export interface OHLC {
   c: number;  // Close
 }
 
-export interface OhlcOptions {
-  profile?: 'default' | 'hepan';
-}
-
 // ==================== 核心映射函数 ====================
 
 /**
@@ -39,8 +35,7 @@ export function scoreToOHLC(
   prevClose: number,
   dimension: Dimension,
   period: Period,
-  index: number,
-  options: OhlcOptions = {}
+  index: number
 ): OHLC {
   // 确定性随机数生成器（基于索引）
   const seed = index * 1000 + score;
