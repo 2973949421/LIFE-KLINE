@@ -1,0 +1,64 @@
+╔════════════════════════════════════════════════════════════════╗
+║              OpenCode Go 配置完成 - 快速参考                    ║
+╚════════════════════════════════════════════════════════════════╝
+
+📋 新配置信息
+────────────────────────────────────────────────────────────────
+  API Endpoint:  https://opencode.ai/zen/go/v1
+  模型名称:       deepseek-v4-flash
+  API Key:       sk-ykrhEuzmR7Egf2wUmq0OWubAltpSYNx2NpubuhdQhWOoytpp0ANl3ozaQqueIo6z
+
+🚀 立即执行（按顺序）
+────────────────────────────────────────────────────────────────
+  1️⃣  测试 API
+      cd B:/sharewithlight/lifeKLINE
+      node test-api.mjs
+
+  2️⃣  本地测试（可选但推荐）
+      pnpm dev
+      访问 http://localhost:3000
+
+  3️⃣  推送到 GitHub
+      git add .env.example lib/server/env.ts README.md MIGRATION.md test-api.sh test-api.mjs GIT-PUSH-GUIDE.md
+      git commit -m "feat: migrate to OpenCode Go with DeepSeek V4 Flash"
+      git push origin master
+
+  4️⃣  更新 Vercel 环境变量
+      访问 https://vercel.com/dashboard
+      Settings → Environment Variables
+      更新三个变量（见下方）
+
+  5️⃣  验证生产环境
+      访问 https://labklife.lightinglab.top
+      测试生成人生 K 线
+
+📝 Vercel 环境变量（全部环境都要设置）
+────────────────────────────────────────────────────────────────
+  ALI_BAILIAN_API_KEY = sk-ykrhEuzmR7Egf2wUmq0OWubAltpSYNx2NpubuhdQhWOoytpp0ANl3ozaQqueIo6z
+  ALI_BAILIAN_BASE_URL = https://opencode.ai/zen/go/v1
+  ALI_BAILIAN_MODEL_NAME = deepseek-v4-flash
+
+📄 详细文档
+────────────────────────────────────────────────────────────────
+  配置总结.md          - 完整的迁移总结和步骤
+  GIT-PUSH-GUIDE.md    - Git 和 Vercel 操作详细指南
+  MIGRATION.md         - 技术说明和故障排查
+  test-api.mjs         - API 测试脚本（Node.js）
+  test-api.sh          - API 测试脚本（Bash）
+
+⚠️  重要提示
+────────────────────────────────────────────────────────────────
+  ❌ 不要推送 .env.local 文件（包含真实 API Key）
+  ✅ 先测试 API 再推送代码
+  ✅ 推送后务必更新 Vercel 环境变量
+  ✅ Vercel 会自动从 GitHub 拉取并部署
+
+🎯 成功标志
+────────────────────────────────────────────────────────────────
+  ✅ node test-api.mjs 返回 "API 测试成功"
+  ✅ 本地 http://localhost:3000 能生成 K 线
+  ✅ 生产环境 https://labklife.lightinglab.top 能正常工作
+
+════════════════════════════════════════════════════════════════
+              现在开始执行第一步：node test-api.mjs
+════════════════════════════════════════════════════════════════

@@ -37,16 +37,17 @@ Then open [http://localhost:3000](http://localhost:3000).
 Copy `.env.example` to `.env.local` and fill in the real values:
 
 ```env
-ALI_BAILIAN_API_KEY=
-ALI_BAILIAN_BASE_URL=
-ALI_BAILIAN_MODEL_NAME=qwen-max
+ALI_BAILIAN_API_KEY=your_opencode_go_api_key
+ALI_BAILIAN_BASE_URL=https://opencode.ai/zen/go/v1
+ALI_BAILIAN_MODEL_NAME=deepseek-v4-flash
 ```
 
 Notes:
 
 - `ALI_BAILIAN_API_KEY` and `ALI_BAILIAN_BASE_URL` are required
+- The project now uses **OpenCode Go** with DeepSeek V4 Flash model for optimal performance
 - `.env.local` must never be committed
-- when Bailian is not configured, the analysis APIs return `503` instead of failing later with a generic `500`
+- when the API is not configured, the analysis APIs return `503` instead of failing later with a generic `500`
 
 ## Quality Checks
 

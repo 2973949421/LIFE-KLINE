@@ -31,14 +31,14 @@ export function getBailianConfig(): { apiKey: string; baseUrl: string; modelName
   return {
     apiKey,
     baseUrl,
-    modelName: process.env.ALI_BAILIAN_MODEL_NAME ?? 'qwen-max',
+    modelName: process.env.ALI_BAILIAN_MODEL_NAME ?? 'deepseek-v4-flash',
   };
 }
 
 export const env = {
   bailianApiKey: process.env.ALI_BAILIAN_API_KEY ?? "",
   bailianBaseUrl: process.env.ALI_BAILIAN_BASE_URL ?? "",
-  bailianModelName: process.env.ALI_BAILIAN_MODEL_NAME ?? "qwen-max",
+  bailianModelName: process.env.ALI_BAILIAN_MODEL_NAME ?? "deepseek-v4-flash",
 };
 
 export { requireEnv };
