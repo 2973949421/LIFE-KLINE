@@ -68,6 +68,10 @@ async function loadSkillPrompt() {
   return readFile(SKILL_PATH, 'utf-8');
 }
 
+function normalizeBaseUrl(baseUrl: string) {
+  return baseUrl.replace(/\/+$/, '');
+}
+
 function extractJsonBlock(content: string) {
   const fenced = content.match(/```json\s*([\s\S]*?)\s*```/i);
   if (fenced?.[1]) {
@@ -76,6 +80,14 @@ function extractJsonBlock(content: string) {
 
   const plain = content.match(/\{[\s\S]*\}/);
   return plain?.[0] ?? '';
+}
+
+function getMaxTokens(period: string) {
+  if (period === 'yearly' || period === 'year') {
+    return 16000;
+  }
+
+  return 10000;
 }
 
 function generateUserPrompt(
@@ -229,7 +241,7 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -242,7 +254,8 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.35,
-        max_tokens: 8000,
+        max_tokens: getMaxTokens(input.period),
+        response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
     });

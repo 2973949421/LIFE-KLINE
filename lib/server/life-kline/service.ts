@@ -62,14 +62,27 @@ async function loadSkillPrompt() {
   return readFile(LIFE_KLINE_SKILL_PATH, 'utf-8');
 }
 
+function normalizeBaseUrl(baseUrl: string) {
+  return baseUrl.replace(/\/+$/, '');
+}
+
 function extractJsonBlock(content: string) {
-  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/);
+  const trimmed = content.trim();
+  const jsonMatch = trimmed.match(/```json\s*([\s\S]*?)\s*```/i) || trimmed.match(/\{[\s\S]*\}/);
 
   if (!jsonMatch) {
     throw new Error('AI 返回格式错误，无法解析 JSON。');
   }
 
   return jsonMatch[1] || jsonMatch[0];
+}
+
+function getMaxTokens(period: string) {
+  if (period === 'yearly' || period === 'year') {
+    return 20000;
+  }
+
+  return 12000;
 }
 
 function generateUserPrompt(input: LifeKlineRequestInput, bazi: BaZiResult): string {
@@ -223,7 +236,7 @@ export async function runLifeKlineInference(input: LifeKlineRequestInput): Promi
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -236,7 +249,8 @@ export async function runLifeKlineInference(input: LifeKlineRequestInput): Promi
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.3,
-        max_tokens: 8000,
+        max_tokens: getMaxTokens(input.period),
+        response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
     });
