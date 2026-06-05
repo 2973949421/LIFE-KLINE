@@ -4,6 +4,12 @@ LifeKLINE is a standalone full-stack Next.js application for Life-Kline and Hepa
 
 Production site: [https://labklife.lightinglab.top](https://labklife.lightinglab.top)
 
+## Model Lineage
+
+- The late-April 2026 baseline, especially commit `0a1735c` from 2026-04-25, is treated as the mature Qwen Max implementation line.
+- That Qwen Max line is no longer the active runtime path because the original LLM supplier/model access is unavailable.
+- The current active line targets DeepSeek V4 Flash through OpenCode Go. The DS-specific stability plan is documented in `docs/lifekline-ds-stability-plan.md`.
+
 ## Features
 
 - Single-person Life-Kline analysis
