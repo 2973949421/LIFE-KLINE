@@ -72,6 +72,10 @@ function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.replace(/\/+$/, '');
 }
 
+function normalizeModelName(modelName: string) {
+  return modelName.replace(/^opencode-go\//, '');
+}
+
 function extractJsonBlock(content: string) {
   const fenced = content.match(/```json\s*([\s\S]*?)\s*```/i);
   if (fenced?.[1]) {
@@ -80,6 +84,23 @@ function extractJsonBlock(content: string) {
 
   const plain = content.match(/\{[\s\S]*\}/);
   return plain?.[0] ?? '';
+}
+
+function extractAssistantContent(data: any) {
+  const content = data.choices?.[0]?.message?.content;
+
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .filter((item) => item?.type === 'text' && typeof item.text === 'string')
+      .map((item) => item.text)
+      .join('\n');
+  }
+
+  return '';
 }
 
 function getMaxTokens(period: string) {
@@ -241,6 +262,7 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
+    const apiModelName = normalizeModelName(modelName);
     const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -248,7 +270,7 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: modelName,
+        model: apiModelName,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
@@ -261,11 +283,12 @@ export async function runHepanKlineInference(input: HepanKlineRequestInput): Pro
     });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`API Error: ${response.status}${errorText ? `: ${errorText.slice(0, 500)}` : ''}`);
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = extractAssistantContent(data);
     const jsonText = extractJsonBlock(content);
 
     if (!jsonText) {

@@ -4,10 +4,10 @@ import { fetchSingleAnalysis, fetchSingleInstantBazi } from '@/features/life-kli
 import type { BaziData, Dimension, FullAnalysisResult, Period, SingleMeta } from '@/features/life-kline/types';
 
 export function useSingleLifeKline() {
-  const [birth, setBirth] = useState('1995-08-24');
-  const [birthTime, setBirthTime] = useState('14:30');
+  const [birth, setBirth] = useState('2004-06-20');
+  const [birthTime, setBirthTime] = useState('19:30');
   const [gender, setGender] = useState<'male' | 'female'>('male');
-  const [dimension, setDimension] = useState<Dimension>('wealth');
+  const [dimension, setDimension] = useState<Dimension>('emotion');
   const [period, setPeriod] = useState<Period>('yearly');
   const [targetYear, setTargetYear] = useState(new Date().getFullYear());
   const [targetMonth, setTargetMonth] = useState(new Date().getMonth() + 1);

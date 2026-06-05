@@ -66,6 +66,10 @@ function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.replace(/\/+$/, '');
 }
 
+function normalizeModelName(modelName: string) {
+  return modelName.replace(/^opencode-go\//, '');
+}
+
 function extractJsonBlock(content: string) {
   const trimmed = content.trim();
   const jsonMatch = trimmed.match(/```json\s*([\s\S]*?)\s*```/i) || trimmed.match(/\{[\s\S]*\}/);
@@ -75,6 +79,23 @@ function extractJsonBlock(content: string) {
   }
 
   return jsonMatch[1] || jsonMatch[0];
+}
+
+function extractAssistantContent(data: any) {
+  const content = data.choices?.[0]?.message?.content;
+
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .filter((item) => item?.type === 'text' && typeof item.text === 'string')
+      .map((item) => item.text)
+      .join('\n');
+  }
+
+  return '';
 }
 
 function getMaxTokens(period: string) {
@@ -236,6 +257,7 @@ export async function runLifeKlineInference(input: LifeKlineRequestInput): Promi
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
+    const apiModelName = normalizeModelName(modelName);
     const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -243,7 +265,7 @@ export async function runLifeKlineInference(input: LifeKlineRequestInput): Promi
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: modelName,
+        model: apiModelName,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
@@ -256,11 +278,12 @@ export async function runLifeKlineInference(input: LifeKlineRequestInput): Promi
     });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`API Error: ${response.status}${errorText ? `: ${errorText.slice(0, 500)}` : ''}`);
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = extractAssistantContent(data);
     const parsed = JSON.parse(extractJsonBlock(content));
 
     if (!isLifeKlineAiResult(parsed)) {

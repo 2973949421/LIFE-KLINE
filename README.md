@@ -45,7 +45,7 @@ ALI_BAILIAN_MODEL_NAME=deepseek-v4-flash
 Notes:
 
 - `ALI_BAILIAN_API_KEY` and `ALI_BAILIAN_BASE_URL` are required
-- The project now uses **OpenCode Go** with DeepSeek V4 Flash model for optimal performance
+- The project uses **OpenCode Go** with DeepSeek V4 Flash through the `/chat/completions` endpoint
 - `.env.local` must never be committed
 - when the API is not configured, the analysis APIs return `503` instead of failing later with a generic `500`
 
