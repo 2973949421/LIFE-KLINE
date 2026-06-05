@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
-import { buildAnnualContext, type AnnualContextRow } from '@/lib/domain/life-kline/annual-context';
+import { addAnnualTagsToContext, type AnnualTaggedContextRow } from '@/lib/domain/life-kline/annual-tags';
+import { buildAnnualContext } from '@/lib/domain/life-kline/annual-context';
 import {
   buildYearlyScaffold,
   calculateChartLifespan,
@@ -16,6 +17,7 @@ import {
   validateDsGlobalAnalysis,
   validateDsScoreResponse,
 } from '@/lib/server/life-kline/validate-ds-score';
+import { buildYearlySegments, validateSegmentCoverage } from '@/lib/server/life-kline/segments';
 
 export type LifeKlineDimension = 'wealth' | 'life' | 'emotion';
 export type LifeKlinePeriod = 'daily' | 'monthly' | 'yearly' | 'day' | 'month' | 'year';
@@ -63,6 +65,7 @@ export interface LifeKlineInferenceResult {
 
 const LIFE_KLINE_SKILL_PATH = path.join(process.cwd(), 'content/prompts/life-kline/skill.md');
 const LIFE_KLINE_DEEPSEEK_SKILL_PATH = path.join(process.cwd(), 'content/prompts/life-kline/skill.deepseek.md');
+const SEGMENT_CONCURRENCY = 4;
 
 function isLifeKlineAiResult(value: unknown): value is LifeKlineAiResult {
   if (!value || typeof value !== 'object') {
@@ -85,15 +88,77 @@ function normalizeModelName(modelName: string) {
   return modelName.replace(/^opencode-go\//, '');
 }
 
-function extractJsonBlock(content: string) {
-  const trimmed = content.trim();
-  const jsonMatch = trimmed.match(/```json\s*([\s\S]*?)\s*```/i) || trimmed.match(/\{[\s\S]*\}/);
+class AiJsonParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AiJsonParseError';
+  }
+}
 
-  if (!jsonMatch) {
-    throw new Error('AI 返回格式错误，无法解析 JSON。');
+function summarizeContent(content: string) {
+  return content.replace(/\s+/g, ' ').trim().slice(0, 240);
+}
+
+function findBalancedJsonObject(content: string) {
+  const start = content.indexOf('{');
+  if (start === -1) {
+    return '';
   }
 
-  return jsonMatch[1] || jsonMatch[0];
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < content.length; index += 1) {
+    const char = content[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+
+      if (depth === 0) {
+        return content.slice(start, index + 1);
+      }
+    }
+  }
+
+  return '';
+}
+
+function extractJsonBlock(content: string) {
+  const trimmed = content.trim();
+  const jsonMatch = trimmed.match(/```json\s*([\s\S]*?)\s*```/i) || trimmed.match(/```\s*([\s\S]*?)\s*```/);
+
+  if (jsonMatch) {
+    const fencedJson = findBalancedJsonObject(jsonMatch[1]);
+    if (fencedJson) {
+      return fencedJson;
+    }
+  }
+
+  const jsonObject = findBalancedJsonObject(trimmed);
+  if (jsonObject) {
+    return jsonObject;
+  }
+
+  throw new AiJsonParseError(`AI 返回格式错误，无法解析 JSON。content_preview=${summarizeContent(content)}`);
 }
 
 function extractAssistantContent(data: any) {
@@ -105,12 +170,37 @@ function extractAssistantContent(data: any) {
 
   if (Array.isArray(content)) {
     return content
-      .filter((item) => item?.type === 'text' && typeof item.text === 'string')
-      .map((item) => item.text)
+      .map((item) => {
+        if (item?.type === 'text' && typeof item.text === 'string') {
+          return item.text;
+        }
+
+        if (typeof item?.text === 'string') {
+          return item.text;
+        }
+
+        if (typeof item?.content === 'string') {
+          return item.content;
+        }
+
+        return '';
+      })
+      .filter(Boolean)
       .join('\n');
   }
 
   return '';
+}
+
+function parseAssistantJson(content: string) {
+  const jsonBlock = extractJsonBlock(content);
+
+  try {
+    return JSON.parse(jsonBlock);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new AiJsonParseError(`AI 返回格式错误，JSON 解析失败：${message}; content_preview=${summarizeContent(jsonBlock)}`);
+  }
 }
 
 function getMaxTokens(period: string) {
@@ -190,9 +280,14 @@ async function callChatCompletion({
 
       const data = await response.json();
       const content = extractAssistantContent(data);
-      return JSON.parse(extractJsonBlock(content));
+      return parseAssistantJson(content);
     } catch (error) {
       lastError = error;
+
+      if (attempt < maxAttempts && error instanceof AiJsonParseError) {
+        await sleep(1500 * attempt);
+        continue;
+      }
 
       if (attempt < maxAttempts && error instanceof Error && error.name === 'AbortError') {
         await sleep(1500 * attempt);
@@ -366,7 +461,7 @@ function buildSegmentPrompt({
   bazi: BaZiResult;
   birthYear: number;
   chartLifespan: ChartLifespan;
-  rows: AnnualContextRow[];
+  rows: AnnualTaggedContextRow[];
   segmentIndex: number;
   totalSegments: number;
 }) {
@@ -399,17 +494,6 @@ ${validationErrors.map((error, index) => `${index + 1}. ${error}`).join('\n')}
 原始任务：
 ${originalPrompt}
 `;
-}
-
-function buildSegments(rows: AnnualContextRow[]) {
-  const ranges = [
-    { start: 1, end: 18 },
-    { start: 19, end: 35 },
-    { start: 36, end: 55 },
-    { start: 56, end: Number.POSITIVE_INFINITY },
-  ];
-
-  return ranges.map((range) => rows.filter((row) => row.age >= range.start && row.age <= range.end)).filter((segment) => segment.length > 0);
 }
 
 async function requestAndValidateSegment({
@@ -448,6 +532,22 @@ async function requestAndValidateSegment({
   }
 }
 
+async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function runNext() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runNext));
+  return results;
+}
+
 function buildGlobalAnalysisPrompt({
   input,
   bazi,
@@ -459,7 +559,7 @@ function buildGlobalAnalysisPrompt({
   bazi: BaZiResult;
   birthYear: number;
   chartLifespan: ChartLifespan;
-  rows: Array<AnnualContextRow & DsScoreRow>;
+  rows: Array<AnnualTaggedContextRow & DsScoreRow>;
 }) {
   return JSON.stringify(
     {
@@ -549,29 +649,28 @@ async function runLifeKlineInferenceV42(
   const systemPrompt = await loadPrompt(LIFE_KLINE_DEEPSEEK_SKILL_PATH);
   const chartLifespan = calculateChartLifespan(bazi, input.gender);
   const scaffold = buildYearlyScaffold(birthYear, chartLifespan.total_years);
-  const annualContext = buildAnnualContext(bazi, scaffold);
-  const segments = buildSegments(annualContext);
-  const scoredRows: DsScoreRow[] = [];
+  const annualContext = addAnnualTagsToContext(bazi, input.gender, input.dimension, buildAnnualContext(bazi, scaffold));
+  const segments = buildYearlySegments(annualContext);
+  validateSegmentCoverage(segments, annualContext);
 
-  for (let index = 0; index < segments.length; index += 1) {
-    const segment = segments[index];
+  const scoredSegments = await runWithConcurrency(segments, SEGMENT_CONCURRENCY, async (segment) => {
     const userPrompt = buildSegmentPrompt({
       input,
       bazi,
       birthYear,
       chartLifespan,
-      rows: segment,
-      segmentIndex: index,
+      rows: segment.rows,
+      segmentIndex: segment.index,
       totalSegments: segments.length,
     });
-    const rows = await requestAndValidateSegment({
+    return requestAndValidateSegment({
       systemPrompt,
       userPrompt,
-      expectedRowIds: segment.map((row) => row.row_id),
+      expectedRowIds: segment.rows.map((row) => row.row_id),
       dimension: input.dimension,
     });
-    scoredRows.push(...rows);
-  }
+  });
+  const scoredRows: DsScoreRow[] = scoredSegments.flat();
 
   const scoreByRowId = new Map(scoredRows.map((row) => [row.row_id, row]));
   const mergedRows = annualContext.map((row) => {

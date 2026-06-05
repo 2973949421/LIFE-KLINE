@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:run": "node --test --experimental-strip-types tests/**/*.test.ts"
+    "test:run": "node --test --experimental-strip-types tests/**/*.test.ts",
+    "test:live:life-kline": "node scripts/check-life-kline-live.mjs"
   },
   "dependencies": {
     "echarts": "^6.0.0",

@@ -16,6 +16,25 @@
 
 当前 DS 改造目标不是复制 Qwen Max 供应商链路，也不是回滚到旧模型，而是在保留 DeepSeek V4 Flash 的基础上重构数据边界、提示词契约和 validator，让 DS 更稳定地承担命理判断与解释任务。
 
+## 当前进度
+
+截至 `7d86f63 Add DeepSeek yearly scaffold pipeline`：
+
+```text
+Phase 0-6 已完成：单人年K默认走 v4.2，本地掌握 row_id/year/age/OHLC/TA
+Phase 7 基本完成：validator fail 后 repair 一次，仍失败则报错
+Phase 8 功能完成：默认 4 段生成，但第一版为串行，真实接口约 268s
+```
+
+下一轮推进重点：
+
+```text
+固化 v4.2 基线
+Phase 8 性能版：4 段受控并发 + segments 测试
+真实接口稳定性脚本
+Phase 9 第一版轻量命理标签
+```
+
 ## 1. 目标
 
 在保留 DeepSeek V4 Flash 主链路的前提下，提高单人年K的稳定性和准确性。
@@ -736,22 +755,20 @@ technical_commentary 存在
 
 ## 20. 下一步推荐
 
-下一次真正开始编码时，先执行：
+下一次真正开始编码时，优先执行：
 
 ```text
-v4.2 单人年K闭环
+Phase 8 performance + Phase 9 tags v1
 ```
 
 也就是：
 
 ```text
-本地图表寿元
-yearly scaffold
-annual context
-DS 专用 prompt/schema/validator
-4 段生成
-route 合成
-自动化与真实接口验收
+抽出 segments 模块并补测试
+4 段 DS 评分改为受控并发
+新增不泄露 API key 的 live 验收脚本
+给年度上下文加入轻量命理标签
+更新 prompt，让 DS 正确使用标签但不机械套分
 ```
 
-这一步会直接替换单人年K主链路，但不碰合盘、日K、月K和完整本地命理知识库。
+这一步继续只处理单人年K，不碰合盘、日K、月K和完整本地命理知识库。

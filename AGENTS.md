@@ -345,6 +345,28 @@ retry 修复一次
 
 每次只做一小段，完成后跑测试。
 
+当前 `7d86f63 Add DeepSeek yearly scaffold pipeline` 已完成 v4.2 首批闭环：
+
+```text
+yearly scaffold
+annual context
+DS prompt/schema/validator
+单人年K v4.2 service
+4 段生成 + retry repair
+route 本地合成 OHLC/TA
+```
+
+后续优先顺序：
+
+```text
+1. 将 4 段生成改成受控并发，降低真实请求耗时。
+2. 增加 live 稳定性验收脚本，连续跑默认输入并输出结构一致性。
+3. 增加轻量命理标签，作为 DS prompt 提示，不直接决定 score。
+4. 如果解释质量仍不足，再继续调 prompt 和年度上下文。
+```
+
+历史执行顺序如下，供理解当前代码来源：
+
 1. 实现 `yearly-scaffold` 和图表寿元，本地生成 `row_id/year/age`。
 2. 实现 `annual-context`，补完整大运和流年干支。
 3. 新增 DeepSeek 专用 prompt，只让 DS 返回 `row_id/score/analysis/confidence`。
@@ -362,6 +384,7 @@ retry 修复一次
 ```text
 pnpm test:run
 pnpm build
+pnpm test:live:life-kline -- --runs 3
 ```
 
 真实接口验收默认输入：
