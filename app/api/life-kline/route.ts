@@ -57,13 +57,15 @@ interface LifeKlineRequestBody {
 }
 
 interface TimelinePoint {
+  row_id?: string;
   year: number;
   month?: number;
   day?: number;
   age?: number;
   analysis?: string;
+  confidence?: number;
   summary?: string;
-  score?: number;
+  score: number;
   o: number;
   h: number;
   l: number;
@@ -246,14 +248,20 @@ export async function POST(request: NextRequest) {
 
     const mappedDimension = dimMap[dimension] || 'wealth';
     const mappedPeriod = (periodMap[period] || periodMap[aiResult.period] || 'yearly') as PeriodType;
-    const scores = aiResult.timeline.map((entry) => {
+    const scores = aiResult.timeline.map((entry, index) => {
       const score = Number(entry.score);
-      return Number.isNaN(score) ? 50 : Math.max(0, Math.min(100, score));
+
+      if (!Number.isFinite(score)) {
+        throw new Error(`AI timeline score is invalid at index ${index}`);
+      }
+
+      return Math.max(0, Math.min(100, score));
     });
     const ohlcList = scoresToOHLCList(scores, mappedDimension, mappedPeriod, 50);
 
     const timeline: TimelinePoint[] = aiResult.timeline.map((entry, index) => ({
       ...entry,
+      score: scores[index],
       o: ohlcList[index].o,
       h: ohlcList[index].h,
       l: ohlcList[index].l,

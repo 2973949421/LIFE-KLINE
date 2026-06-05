@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LifeKlineFinalResponseV1",
+  "type": "object",
+  "required": ["dimension", "period", "timeline", "technical_indicators", "technical_commentary"],
+  "properties": {
+    "dimension": { "type": "string", "enum": ["wealth", "life", "emotion"] },
+    "period": { "type": "string", "enum": ["daily", "monthly", "yearly"] },
+    "lifespan": {
+      "type": "object",
+      "properties": {
+        "total_years": { "type": "integer", "minimum": 75, "maximum": 89 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasoning": { "type": "string" }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["year", "o", "h", "l", "c", "summary"],
+        "properties": {
+          "row_id": { "type": "string" },
+          "year": { "type": "integer" },
+          "month": { "type": "integer" },
+          "day": { "type": "integer" },
+          "age": { "type": "integer" },
+          "analysis": { "type": "string" },
+          "score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "o": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "h": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "l": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "c": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "technical_indicators": { "type": "object" },
+    "technical_commentary": { "type": "object" },
+    "global_analysis": { "type": "object" }
+  }
+}

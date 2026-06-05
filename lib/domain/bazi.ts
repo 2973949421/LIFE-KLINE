@@ -226,7 +226,7 @@ export function paiPan(
   }
 
   const daYunList = (yun.getDaYun ? yun.getDaYun() : []) as DaYunLike[];
-  const daYun = daYunList.slice(0, 8).map((dy, idx: number) => {
+  const daYun = daYunList.slice(0, 10).map((dy, idx: number) => {
     const startAge = qiYunAge + idx * 10;
     const ganZhi = dy.getGanZhi ? dy.getGanZhi() : '';
     return {

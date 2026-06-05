@@ -4,10 +4,14 @@ export type Period = 'daily' | 'monthly' | 'yearly';
 export type RelationType = 'couple' | 'business' | 'parent_child' | 'other';
 
 export interface TimelineEntry {
+  row_id?: string;
   year: number;
   month?: number;
   day?: number;
   age?: number;
+  analysis?: string;
+  score?: number;
+  confidence?: number;
   o: number;
   h: number;
   l: number;
@@ -66,12 +70,15 @@ export interface TrendAnalysis {
 }
 
 export interface GlobalAnalysis {
+  pattern_summary?: string;
   dimension_analysis: string;
-  pattern_match: {
+  pattern_match?: {
     primary_pattern: string;
     confidence: number;
   };
   key_insights: string;
+  peak_periods?: Array<string | { start_age: number; end_age: number; reason: string }>;
+  risk_periods?: Array<string | { start_age: number; end_age: number; reason: string }>;
 }
 
 export interface TechnicalCommentary {

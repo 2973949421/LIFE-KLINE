@@ -38,7 +38,7 @@ DeepSeek 不再输出 OHLC 和技术指标
 DeepSeek 原始输出经过严格 validator
 非法输出不会进入图表
 不使用默认 50 或本地假补齐掩盖错误
-legacy pipeline 可配置回滚
+回滚通过 Git revert 完成
 pnpm test:run 通过
 pnpm build 通过
 ```
@@ -103,7 +103,7 @@ v4.6 轻量命理标签
 v5 可选 base_score + score_delta
 ```
 
-当前只执行 v4.2 最小闭环。v4.5/v4.6/v5 不要提前做。
+当前首批实际执行更激进的 v4.2 闭环：单人年K直接启用 v4.2、本地图表寿元、默认 4 段 DS 调用、validator + repair。v5 本地 base_score 仍然后置。
 
 ## 5. 本地与 DeepSeek 的职责边界
 
@@ -155,28 +155,21 @@ technical_commentary
 lifespan.total_years 对图表长度的控制
 ```
 
-## 6. Phase 0：pipeline 开关
+## 6. Phase 0：主链路选择
 
 ### 目标
 
-保留现有 legacy 路径，新增 v4.2 路径可开关。
+单人年K直接走 v4.2，日K/月K和合盘暂时保留 legacy。
 
-### 配置
-
-新增：
-
-```env
-LIFE_KLINE_PIPELINE=v4_legacy
-```
-
-可选值：
+### 规则
 
 ```text
-v4_legacy
-v4_2_scaffold
+single yearly/year -> v4.2
+single daily/monthly -> legacy
+hepan -> legacy
 ```
 
-第一版默认建议保持 `v4_legacy`，开发验收时手动切到 `v4_2_scaffold`。
+本轮不增加 `LIFE_KLINE_PIPELINE` 配置。需要回滚时使用 Git revert。
 
 ### 预期文件
 
@@ -190,15 +183,15 @@ README.md
 ### 验收
 
 ```text
-legacy 路径行为不变
-v4_2 路径可单独进入
-配置不存在时不破坏当前功能
+single yearly/year 不再走旧自由生成 timeline
+single daily/monthly 行为不变
+hepan 行为不变
 ```
 
 ### 回滚
 
 ```text
-LIFE_KLINE_PIPELINE=v4_legacy
+git revert <v4.2-refactor-commit>
 ```
 
 ## 7. Phase 1：yearly scaffold
@@ -238,15 +231,9 @@ Y2005_A2
 Y2006_A3
 ```
 
-### displayYears
+### 图表寿元
 
-第一版用配置控制：
-
-```env
-LIFE_KLINE_DISPLAY_YEARS=89
-```
-
-如果没有配置，默认 89。
+第一版由本地轻量启发式计算 `75-89` 年，语义为“图表寿元”，不是医学或真实寿命判断。DS 不决定 timeline 长度。
 
 ### 测试
 
@@ -508,7 +495,7 @@ global_analysis 缺失失败
 
 ### 目标
 
-保留现有 `runLifeKlineInference()` 外部入口，内部根据 pipeline 调用 legacy 或 v4.2。
+保留现有 `runLifeKlineInference()` 外部入口。单人 `yearly/year` 直接调用 v4.2，单人 `daily/monthly` 保持 legacy。
 
 ### 建议新增
 
@@ -623,7 +610,7 @@ l <= min(o,c)
 
 ## 14. Phase 8：分段生成
 
-只有当 v4.2 一次性输出 89 rows 仍不稳定时再做。
+首批默认启用分段生成，因为当前按 token 计费，用户已确认多次请求可以接受。
 
 ### 分段建议
 
@@ -729,7 +716,7 @@ technical_commentary 存在
 趋势方向一致率 >= 90%
 ```
 
-如果达不到，优先进入 Phase 8 分段生成，而不是本地假补齐。
+如果达不到，优先继续缩小 DS 输出字段、增强 repair prompt 或调整分段上下文，而不是本地假补齐。
 
 ## 19. 明确禁止
 
@@ -752,15 +739,19 @@ technical_commentary 存在
 下一次真正开始编码时，先执行：
 
 ```text
-Phase 0 + Phase 1
+v4.2 单人年K闭环
 ```
 
 也就是：
 
 ```text
-pipeline 开关
+本地图表寿元
 yearly scaffold
-scaffold 测试
+annual context
+DS 专用 prompt/schema/validator
+4 段生成
+route 合成
+自动化与真实接口验收
 ```
 
-这一步最小、最稳、最容易验证，并且不会碰 DS 调用主链路。完成后再进入 annual context 和 DS validator。
+这一步会直接替换单人年K主链路，但不碰合盘、日K、月K和完整本地命理知识库。

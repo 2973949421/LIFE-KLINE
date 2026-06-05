@@ -1,8 +1,21 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { buildAnnualContext, type AnnualContextRow } from '@/lib/domain/life-kline/annual-context';
+import {
+  buildYearlyScaffold,
+  calculateChartLifespan,
+  type ChartLifespan,
+} from '@/lib/domain/life-kline/yearly-scaffold';
 import { getBailianConfig } from '@/lib/server/env';
 import { paiPan, type BaZiResult } from '@/lib/domain/bazi';
 import { getHourInfo, type HourInfo } from '@/lib/domain/hour-map';
+import {
+  DsScoreValidationError,
+  type DsGlobalAnalysis,
+  type DsScoreRow,
+  validateDsGlobalAnalysis,
+  validateDsScoreResponse,
+} from '@/lib/server/life-kline/validate-ds-score';
 
 export type LifeKlineDimension = 'wealth' | 'life' | 'emotion';
 export type LifeKlinePeriod = 'daily' | 'monthly' | 'yearly' | 'day' | 'month' | 'year';
@@ -18,6 +31,7 @@ export interface LifeKlineRequestInput {
 }
 
 export interface LifeKlineAiTimelineEntry {
+  row_id?: string;
   year: number;
   month?: number;
   day?: number;
@@ -48,6 +62,7 @@ export interface LifeKlineInferenceResult {
 }
 
 const LIFE_KLINE_SKILL_PATH = path.join(process.cwd(), 'content/prompts/life-kline/skill.md');
+const LIFE_KLINE_DEEPSEEK_SKILL_PATH = path.join(process.cwd(), 'content/prompts/life-kline/skill.deepseek.md');
 
 function isLifeKlineAiResult(value: unknown): value is LifeKlineAiResult {
   if (!value || typeof value !== 'object') {
@@ -58,8 +73,8 @@ function isLifeKlineAiResult(value: unknown): value is LifeKlineAiResult {
   return Array.isArray(candidate.timeline) && typeof candidate.dimension === 'string' && typeof candidate.period === 'string';
 }
 
-async function loadSkillPrompt() {
-  return readFile(LIFE_KLINE_SKILL_PATH, 'utf-8');
+async function loadPrompt(filePath: string) {
+  return readFile(filePath, 'utf-8');
 }
 
 function normalizeBaseUrl(baseUrl: string) {
@@ -104,6 +119,93 @@ function getMaxTokens(period: string) {
   }
 
   return 12000;
+}
+
+function isYearlyPeriod(period: string) {
+  return period === 'yearly' || period === 'year';
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isRetryableStatus(status: number) {
+  return status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+async function callChatCompletion({
+  systemPrompt,
+  userPrompt,
+  maxTokens,
+  temperature = 0.3,
+}: {
+  systemPrompt: string;
+  userPrompt: string;
+  maxTokens: number;
+  temperature?: number;
+}) {
+  const maxAttempts = 3;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const { apiKey, baseUrl, modelName } = getBailianConfig();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+
+    try {
+      const apiModelName = normalizeModelName(modelName);
+      const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: apiModelName,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature,
+          max_tokens: maxTokens,
+          response_format: { type: 'json_object' },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const error = new Error(`API Error: ${response.status}${errorText ? `: ${errorText.slice(0, 500)}` : ''}`);
+
+        if (isRetryableStatus(response.status) && attempt < maxAttempts) {
+          lastError = error;
+          await sleep(1500 * attempt);
+          continue;
+        }
+
+        throw error;
+      }
+
+      const data = await response.json();
+      const content = extractAssistantContent(data);
+      return JSON.parse(extractJsonBlock(content));
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < maxAttempts && error instanceof Error && error.name === 'AbortError') {
+        await sleep(1500 * attempt);
+        continue;
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('AI request failed');
 }
 
 function generateUserPrompt(input: LifeKlineRequestInput, bazi: BaZiResult): string {
@@ -156,17 +258,8 @@ function generateUserPrompt(input: LifeKlineRequestInput, bazi: BaZiResult): str
         { "year": ${input.targetYear}, "month": 2, "analysis": "春节财运亨通，财星透干", "score": 72, "confidence": 0.82 }
       ]`;
       break;
-    case 'yearly':
-    case 'year':
     default:
-      timeDescription = `生成 ${birthYear} 年起的年K数据`;
-      dataCountInstruction = 'AI 根据命理推算寿元，生成 75-89 条记录';
-      periodLabel = '年K';
-      timelineExample = `"timeline": [
-        { "year": ${birthYear}, "age": 1, "analysis": "命定开局，根基渐稳", "score": 52, "confidence": 0.75 },
-        { "year": ${birthYear + 1}, "age": 2, "analysis": "运势平稳，健康无忧", "score": 55, "confidence": 0.72 }
-      ]`;
-      break;
+      throw new Error(`Unsupported legacy period: ${input.period}`);
   }
 
   return `
@@ -189,20 +282,10 @@ ${timeDescription}
 2. **维度聚焦**：专注于"${dimensionName}"相关指标
 3. **数据量**：${dataCountInstruction}
 4. **评分规则**：score 为 0-100 整数，根据八字特征合理评分
-5. **评分连续性**：相邻时间点 score 差异不可过大（日K≤20，月K≤25，年K≤30）
+5. **评分连续性**：相邻时间点 score 差异不可过大（日K≤20，月K≤25）
 6. **分析简洁**：analysis 必须 20-50 字，包含状态和依据
-7. **寿元推算**（仅年K）：在 lifespan 字段中输出推算的寿元年数，75-89区间
-8. **字段完整**：日K含day，月K含month，年K含age
-9. **置信度**：confidence 为 0.6-0.95 之间的浮点数
-${input.period === 'yearly' || input.period === 'year'
-    ? `
-### 年K波段规则
-
-**禁止输出两条直线**：必须有明显的波段起伏：
-1. 少年期 0-18岁 震荡 → 青年期 19-35岁 趋势 → 中年期 36-55岁 主浪 → 晚年期 56+岁 回归
-2. 每 15-20 年必须有一次大反转
-3. 波段内每 5 年必须有回调`
-    : ''}
+7. **字段完整**：日K含day，月K含month
+8. **置信度**：confidence 为 0.6-0.95 之间的浮点数
 
 ### JSON 输出格式（v4.1：analysis + score，代码自动映射OHLC）
 \`\`\`json
@@ -217,7 +300,6 @@ ${input.period === 'yearly' || input.period === 'year'
     "riZhuWuXing": "${bazi.riZhuWuXing}",
     "wangShuai": "${bazi.wangShuai}"
   },
-  "lifespan": { "total_years": 82, "confidence": 0.75, "reasoning": "推算依据" },
   "meta": {
     "birthYear": ${birthYear},
     "gender": "${input.gender}",
@@ -241,62 +323,313 @@ ${input.period === 'yearly' || input.period === 'year'
 `;
 }
 
-export async function runLifeKlineInference(input: LifeKlineRequestInput): Promise<LifeKlineInferenceResult> {
-  // Check Bailian API configuration first
-  const { apiKey, baseUrl, modelName } = getBailianConfig();
+function formatBaziProfile(input: LifeKlineRequestInput, bazi: BaZiResult, birthYear: number, chartLifespan: ChartLifespan) {
+  return {
+    birth: input.birth,
+    birthTime: input.birthTime,
+    gender: input.gender,
+    dimension: input.dimension,
+    period: 'year',
+    chart_lifespan_years: chartLifespan.total_years,
+    bazi: {
+      nianZhu: bazi.formatted.nianZhu,
+      yueZhu: bazi.formatted.yueZhu,
+      riZhu: bazi.formatted.riZhu,
+      shiZhu: bazi.formatted.shiZhu,
+      riZhuWuXing: bazi.riZhuWuXing,
+      riZhuYinYang: bazi.riZhuYinYang,
+      wangShuai: bazi.wangShuai,
+      wuXingCount: bazi.wuXingCount,
+      shiShen: bazi.shiShen,
+      qiYunAge: bazi.qiYunAge,
+      daYun: bazi.daYun.map((item) => ({
+        ganZhi: `${item.gan}${item.zhi}`,
+        startAge: item.age,
+        endAge: item.age + 9,
+        startYear: birthYear + item.age - 1,
+        endYear: birthYear + item.age + 8,
+      })),
+    },
+  };
+}
 
-  const systemPrompt = await loadSkillPrompt();
+function buildSegmentPrompt({
+  input,
+  bazi,
+  birthYear,
+  chartLifespan,
+  rows,
+  segmentIndex,
+  totalSegments,
+}: {
+  input: LifeKlineRequestInput;
+  bazi: BaZiResult;
+  birthYear: number;
+  chartLifespan: ChartLifespan;
+  rows: AnnualContextRow[];
+  segmentIndex: number;
+  totalSegments: number;
+}) {
+  return JSON.stringify(
+    {
+      task: 'life_kline_yearly_segment_score',
+      instructions: {
+        segment: `${segmentIndex + 1}/${totalSegments}`,
+        output: 'Return exactly one JSON object. Return rows only for the supplied row_id values.',
+        forbidden_fields: ['year', 'age', 'o', 'h', 'l', 'c', 'open', 'high', 'low', 'close', 'technical_indicators'],
+      },
+      profile: formatBaziProfile(input, bazi, birthYear, chartLifespan),
+      rows,
+    },
+    null,
+    2,
+  );
+}
+
+function buildRepairPrompt(originalPrompt: string, validationErrors: string[]) {
+  return `
+你上一次返回的 JSON 没有通过校验。
+
+校验错误：
+${validationErrors.map((error, index) => `${index + 1}. ${error}`).join('\n')}
+
+请根据以下原始任务只返回修复后的完整 JSON。
+不要解释，不要 markdown，不要改变 row_id 集合，不要输出 year、age、o、h、l、c。
+
+原始任务：
+${originalPrompt}
+`;
+}
+
+function buildSegments(rows: AnnualContextRow[]) {
+  const ranges = [
+    { start: 1, end: 18 },
+    { start: 19, end: 35 },
+    { start: 36, end: 55 },
+    { start: 56, end: Number.POSITIVE_INFINITY },
+  ];
+
+  return ranges.map((range) => rows.filter((row) => row.age >= range.start && row.age <= range.end)).filter((segment) => segment.length > 0);
+}
+
+async function requestAndValidateSegment({
+  systemPrompt,
+  userPrompt,
+  expectedRowIds,
+  dimension,
+}: {
+  systemPrompt: string;
+  userPrompt: string;
+  expectedRowIds: string[];
+  dimension: string;
+}): Promise<DsScoreRow[]> {
+  try {
+    const parsed = await callChatCompletion({
+      systemPrompt,
+      userPrompt,
+      maxTokens: 9000,
+      temperature: 0.2,
+    });
+    const validated = validateDsScoreResponse(parsed, { expectedRowIds, dimension });
+    return validated.rows;
+  } catch (error) {
+    if (!(error instanceof DsScoreValidationError)) {
+      throw error;
+    }
+
+    const repaired = await callChatCompletion({
+      systemPrompt,
+      userPrompt: buildRepairPrompt(userPrompt, error.validationErrors),
+      maxTokens: 9000,
+      temperature: 0.1,
+    });
+    const validated = validateDsScoreResponse(repaired, { expectedRowIds, dimension });
+    return validated.rows;
+  }
+}
+
+function buildGlobalAnalysisPrompt({
+  input,
+  bazi,
+  birthYear,
+  chartLifespan,
+  rows,
+}: {
+  input: LifeKlineRequestInput;
+  bazi: BaZiResult;
+  birthYear: number;
+  chartLifespan: ChartLifespan;
+  rows: Array<AnnualContextRow & DsScoreRow>;
+}) {
+  return JSON.stringify(
+    {
+      task: 'life_kline_yearly_global_analysis',
+      instructions: {
+        output: 'Return exactly one JSON object containing global_analysis only.',
+        global_analysis_shape: {
+          pattern_summary: 'string',
+          dimension_analysis: 'string',
+          key_insights: 'string',
+          peak_periods: [{ start_age: 'integer', end_age: 'integer', reason: 'string' }],
+          risk_periods: [{ start_age: 'integer', end_age: 'integer', reason: 'string' }],
+        },
+      },
+      profile: formatBaziProfile(input, bazi, birthYear, chartLifespan),
+      timeline_summary: rows.map((row) => ({
+        row_id: row.row_id,
+        year: row.year,
+        age: row.age,
+        liu_nian: row.liu_nian,
+        da_yun: row.da_yun,
+        score: row.score,
+        analysis: row.analysis,
+      })),
+    },
+    null,
+    2,
+  );
+}
+
+async function requestGlobalAnalysis(systemPrompt: string, userPrompt: string): Promise<DsGlobalAnalysis> {
+  try {
+    const parsed = await callChatCompletion({
+      systemPrompt,
+      userPrompt,
+      maxTokens: 6000,
+      temperature: 0.2,
+    });
+    return validateDsGlobalAnalysis((parsed as { global_analysis?: unknown }).global_analysis);
+  } catch (error) {
+    if (!(error instanceof DsScoreValidationError)) {
+      throw error;
+    }
+
+    const repaired = await callChatCompletion({
+      systemPrompt,
+      userPrompt: buildRepairPrompt(userPrompt, error.validationErrors),
+      maxTokens: 6000,
+      temperature: 0.1,
+    });
+    return validateDsGlobalAnalysis((repaired as { global_analysis?: unknown }).global_analysis);
+  }
+}
+
+async function runLifeKlineInferenceLegacy(
+  input: LifeKlineRequestInput,
+  bazi: BaZiResult,
+  birthYear: number,
+  hourInfo?: HourInfo,
+): Promise<LifeKlineInferenceResult> {
+  const systemPrompt = await loadPrompt(LIFE_KLINE_SKILL_PATH);
+  const userPrompt = generateUserPrompt(input, bazi);
+  const parsed = await callChatCompletion({
+    systemPrompt,
+    userPrompt,
+    maxTokens: getMaxTokens(input.period),
+  });
+
+  if (!isLifeKlineAiResult(parsed)) {
+    throw new Error('AI 返回格式错误，缺少有效 timeline。');
+  }
+
+  return {
+    aiResult: parsed,
+    bazi,
+    birthYear,
+    hourInfo,
+  };
+}
+
+async function runLifeKlineInferenceV42(
+  input: LifeKlineRequestInput,
+  bazi: BaZiResult,
+  birthYear: number,
+  hourInfo?: HourInfo,
+): Promise<LifeKlineInferenceResult> {
+  const systemPrompt = await loadPrompt(LIFE_KLINE_DEEPSEEK_SKILL_PATH);
+  const chartLifespan = calculateChartLifespan(bazi, input.gender);
+  const scaffold = buildYearlyScaffold(birthYear, chartLifespan.total_years);
+  const annualContext = buildAnnualContext(bazi, scaffold);
+  const segments = buildSegments(annualContext);
+  const scoredRows: DsScoreRow[] = [];
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const userPrompt = buildSegmentPrompt({
+      input,
+      bazi,
+      birthYear,
+      chartLifespan,
+      rows: segment,
+      segmentIndex: index,
+      totalSegments: segments.length,
+    });
+    const rows = await requestAndValidateSegment({
+      systemPrompt,
+      userPrompt,
+      expectedRowIds: segment.map((row) => row.row_id),
+      dimension: input.dimension,
+    });
+    scoredRows.push(...rows);
+  }
+
+  const scoreByRowId = new Map(scoredRows.map((row) => [row.row_id, row]));
+  const mergedRows = annualContext.map((row) => {
+    const scored = scoreByRowId.get(row.row_id);
+
+    if (!scored) {
+      throw new Error(`AI_SCORE_VALIDATION_FAILED: missing row_id after merge: ${row.row_id}`);
+    }
+
+    return { ...row, ...scored };
+  });
+  const globalAnalysisPrompt = buildGlobalAnalysisPrompt({
+    input,
+    bazi,
+    birthYear,
+    chartLifespan,
+    rows: mergedRows,
+  });
+  const globalAnalysis = await requestGlobalAnalysis(systemPrompt, globalAnalysisPrompt);
+
+  return {
+    aiResult: {
+      dimension: input.dimension,
+      period: 'year',
+      lifespan: chartLifespan,
+      meta: {
+        birthYear,
+        gender: input.gender,
+        mainAttribute: `${bazi.wangShuai}${bazi.riZhuWuXing}`,
+        chart_lifespan_years: chartLifespan.total_years,
+      },
+      timeline: mergedRows.map((row) => ({
+        row_id: row.row_id,
+        year: row.year,
+        age: row.age,
+        analysis: row.analysis,
+        score: row.score,
+        confidence: row.confidence,
+      })),
+      global_analysis: globalAnalysis as unknown as Record<string, unknown>,
+    },
+    bazi,
+    birthYear,
+    hourInfo,
+  };
+}
+
+export async function runLifeKlineInference(input: LifeKlineRequestInput): Promise<LifeKlineInferenceResult> {
   const birthYear = parseInt(input.birth.split('-')[0], 10);
   const birthMonth = parseInt(input.birth.split('-')[1], 10);
   const birthDay = parseInt(input.birth.split('-')[2], 10);
   const birthHour = input.birthTime ? parseInt(input.birthTime.split(':')[0], 10) : 12;
   const bazi = paiPan(birthYear, birthMonth, birthDay, birthHour, input.gender);
-  const userPrompt = generateUserPrompt(input, bazi);
+  const hourInfo = input.birthTime ? getHourInfo(birthHour) : undefined;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300000);
-
-  try {
-    const apiModelName = normalizeModelName(modelName);
-    const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: apiModelName,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: getMaxTokens(input.period),
-        response_format: { type: 'json_object' },
-      }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API Error: ${response.status}${errorText ? `: ${errorText.slice(0, 500)}` : ''}`);
-    }
-
-    const data = await response.json();
-    const content = extractAssistantContent(data);
-    const parsed = JSON.parse(extractJsonBlock(content));
-
-    if (!isLifeKlineAiResult(parsed)) {
-      throw new Error('AI 返回格式错误，缺少有效 timeline。');
-    }
-
-    return {
-      aiResult: parsed,
-      bazi,
-      birthYear,
-      hourInfo: input.birthTime ? getHourInfo(birthHour) : undefined,
-    };
-  } finally {
-    clearTimeout(timeoutId);
+  if (isYearlyPeriod(input.period)) {
+    return runLifeKlineInferenceV42(input, bazi, birthYear, hourInfo);
   }
+
+  return runLifeKlineInferenceLegacy(input, bazi, birthYear, hourInfo);
 }

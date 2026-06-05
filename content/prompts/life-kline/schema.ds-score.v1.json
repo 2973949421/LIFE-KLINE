@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LifeKlineDeepSeekScoreResponseV1",
+  "type": "object",
+  "required": ["schema_version", "dimension", "period", "rows"],
+  "properties": {
+    "schema_version": {
+      "const": "life_kline_ds_score_v1"
+    },
+    "dimension": {
+      "type": "string",
+      "enum": ["wealth", "life", "emotion"]
+    },
+    "period": {
+      "const": "year"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["row_id", "score", "analysis", "confidence"],
+        "properties": {
+          "row_id": { "type": "string" },
+          "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "analysis": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "global_analysis": {
+      "type": "object",
+      "required": ["pattern_summary", "dimension_analysis", "key_insights"],
+      "properties": {
+        "pattern_summary": { "type": "string", "minLength": 1 },
+        "dimension_analysis": { "type": "string", "minLength": 1 },
+        "key_insights": { "type": "string", "minLength": 1 },
+        "peak_periods": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["start_age", "end_age", "reason"],
+            "properties": {
+              "start_age": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "end_age": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "risk_periods": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["start_age", "end_age", "reason"],
+            "properties": {
+              "start_age": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "end_age": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -7,8 +7,8 @@ interface GlobalAnalysis {
   key_insights?: string;
   best_periods?: string[];
   caution_periods?: string[];
-  peak_periods?: string[];
-  risk_periods?: string[];
+  peak_periods?: Array<string | { start_age: number; end_age: number; reason: string }>;
+  risk_periods?: Array<string | { start_age: number; end_age: number; reason: string }>;
   timeline_milestones?: Array<{
     period: string;
     title: string;
@@ -56,6 +56,14 @@ const MUTED = '#666';
 const PANEL_BG = 'rgb(255, 251, 240)';
 const BORDER = 'rgba(26, 35, 126, 0.2)';
 const TECH_BG = 'rgba(26, 35, 126, 0.03)';
+
+function formatPeriod(period: string | { start_age: number; end_age: number; reason: string }) {
+  if (typeof period === 'string') {
+    return period;
+  }
+
+  return `${period.start_age}-${period.end_age}岁：${period.reason}`;
+}
 
 function TextBlock({ children }: { children: React.ReactNode }) {
   return (
@@ -140,8 +148,8 @@ export default function AnalysisPanel({ globalAnalysis, technicalCommentary, dim
                       巅峰时期
                     </div>
                     {globalAnalysis.peak_periods.map((period) => (
-                      <div key={period} style={{ color: MUTED }}>
-                        {period}
+                      <div key={formatPeriod(period)} style={{ color: MUTED }}>
+                        {formatPeriod(period)}
                       </div>
                     ))}
                   </div>
@@ -152,8 +160,8 @@ export default function AnalysisPanel({ globalAnalysis, technicalCommentary, dim
                       风险时期
                     </div>
                     {globalAnalysis.risk_periods.map((period) => (
-                      <div key={period} style={{ color: MUTED }}>
-                        {period}
+                      <div key={formatPeriod(period)} style={{ color: MUTED }}>
+                        {formatPeriod(period)}
                       </div>
                     ))}
                   </div>
