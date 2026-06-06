@@ -10,7 +10,7 @@
 - `analysis`: 20-60 字中文分析，包含命理依据
 - `confidence`: 0-1 的数字
 
-系统输入中的 `tags` 和 `tag_reasons` 是本地生成的轻量命理提示，只用于帮助你判断年度重点。标签不是分数规则，不得机械套用；仍需结合八字、大运、流年和分析维度综合判断。
+系统输入中的 `tags` 是本地生成的轻量提示，`tag_legend` 会解释含义。标签不是分数规则，不得机械套用；仍需结合八字、大运、流年和分析维度综合判断。
 
 ## 严格禁止
 
@@ -21,7 +21,7 @@
 
 ## 输出格式
 
-只返回 JSON object：
+segment 任务只返回 JSON object：
 
 ```json
 {
@@ -39,14 +39,14 @@
 }
 ```
 
-如果本次任务要求输出 `global_analysis`，则在同一个 JSON object 中额外输出：
+global analysis 任务只返回 JSON object：
 
 ```json
 {
   "global_analysis": {
     "pattern_summary": "震荡上行",
-    "dimension_analysis": "约150-300字中文分析。",
-    "key_insights": "约50-150字中文建议。",
+    "dimension_analysis": "80-140字中文分析。",
+    "key_insights": "40-90字中文建议。",
     "peak_periods": [
       { "start_age": 34, "end_age": 43, "reason": "原因" }
     ],

@@ -18,21 +18,22 @@
 
 ## 当前进度
 
-截至 `7d86f63 Add DeepSeek yearly scaffold pipeline`：
+截至 `ad67e58 Improve DeepSeek yearly stability checks` 与本轮硬标准补强：
 
 ```text
 Phase 0-6 已完成：单人年K默认走 v4.2，本地掌握 row_id/year/age/OHLC/TA
-Phase 7 基本完成：validator fail 后 repair 一次，仍失败则报错
-Phase 8 功能完成：默认 4 段生成，但第一版为串行，真实接口约 268s
+Phase 7 已加固：validator fail 后 repair 一次；JSON/非 JSON/半截 JSON 有解析诊断与重试测试
+Phase 8 已完成性能版：默认 4 段受控并发，segments 测试覆盖完整
+Phase 9 已完成 compact tags v2：标签通过 DS compact context 传入，tag_reasons 不再逐行发送
 ```
 
 下一轮推进重点：
 
 ```text
-固化 v4.2 基线
-Phase 8 性能版：4 段受控并发 + segments 测试
-真实接口稳定性脚本
-Phase 9 第一版轻量命理标签
+继续观察 live 耗时尾延迟
+基于 accuracy_summary 对比网页版 DS / GPT Pro 结果
+按样本调 prompt、tag legend 和年度上下文
+暂不进入 Phase 10 base_score
 ```
 
 ## 1. 目标
@@ -758,17 +759,16 @@ technical_commentary 存在
 下一次真正开始编码时，优先执行：
 
 ```text
-Phase 8 performance + Phase 9 tags v1
+accuracy evaluation + prompt tuning
 ```
 
 也就是：
 
 ```text
-抽出 segments 模块并补测试
-4 段 DS 评分改为受控并发
-新增不泄露 API key 的 live 验收脚本
-给年度上下文加入轻量命理标签
-更新 prompt，让 DS 正确使用标签但不机械套分
+收集 3-5 个典型八字样本
+用 live accuracy_summary 固定比较口径
+比较网页版 DS / GPT Pro / 当前 API 输出的主峰、风险段、走势
+只调 prompt、tag legend 和 compact context，不改 scaffold/validator 主契约
 ```
 
 这一步继续只处理单人年K，不碰合盘、日K、月K和完整本地命理知识库。

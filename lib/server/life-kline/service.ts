@@ -17,6 +17,13 @@ import {
   validateDsGlobalAnalysis,
   validateDsScoreResponse,
 } from '@/lib/server/life-kline/validate-ds-score';
+import { AiJsonParseError, extractAssistantContent, parseAssistantJson } from '@/lib/server/life-kline/ai-json';
+import {
+  buildDsCompactProfile,
+  buildDsCompactRows,
+  buildDsTimelineSummary,
+  DS_TAG_LEGEND,
+} from '@/lib/server/life-kline/ds-context';
 import { buildYearlySegments, validateSegmentCoverage } from '@/lib/server/life-kline/segments';
 
 export type LifeKlineDimension = 'wealth' | 'life' | 'emotion';
@@ -86,121 +93,6 @@ function normalizeBaseUrl(baseUrl: string) {
 
 function normalizeModelName(modelName: string) {
   return modelName.replace(/^opencode-go\//, '');
-}
-
-class AiJsonParseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AiJsonParseError';
-  }
-}
-
-function summarizeContent(content: string) {
-  return content.replace(/\s+/g, ' ').trim().slice(0, 240);
-}
-
-function findBalancedJsonObject(content: string) {
-  const start = content.indexOf('{');
-  if (start === -1) {
-    return '';
-  }
-
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = start; index < content.length; index += 1) {
-    const char = content[index];
-
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === '\\') {
-        escaped = true;
-      } else if (char === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      inString = true;
-      continue;
-    }
-
-    if (char === '{') {
-      depth += 1;
-    } else if (char === '}') {
-      depth -= 1;
-
-      if (depth === 0) {
-        return content.slice(start, index + 1);
-      }
-    }
-  }
-
-  return '';
-}
-
-function extractJsonBlock(content: string) {
-  const trimmed = content.trim();
-  const jsonMatch = trimmed.match(/```json\s*([\s\S]*?)\s*```/i) || trimmed.match(/```\s*([\s\S]*?)\s*```/);
-
-  if (jsonMatch) {
-    const fencedJson = findBalancedJsonObject(jsonMatch[1]);
-    if (fencedJson) {
-      return fencedJson;
-    }
-  }
-
-  const jsonObject = findBalancedJsonObject(trimmed);
-  if (jsonObject) {
-    return jsonObject;
-  }
-
-  throw new AiJsonParseError(`AI 返回格式错误，无法解析 JSON。content_preview=${summarizeContent(content)}`);
-}
-
-function extractAssistantContent(data: any) {
-  const content = data.choices?.[0]?.message?.content;
-
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((item) => {
-        if (item?.type === 'text' && typeof item.text === 'string') {
-          return item.text;
-        }
-
-        if (typeof item?.text === 'string') {
-          return item.text;
-        }
-
-        if (typeof item?.content === 'string') {
-          return item.content;
-        }
-
-        return '';
-      })
-      .filter(Boolean)
-      .join('\n');
-  }
-
-  return '';
-}
-
-function parseAssistantJson(content: string) {
-  const jsonBlock = extractJsonBlock(content);
-
-  try {
-    return JSON.parse(jsonBlock);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new AiJsonParseError(`AI 返回格式错误，JSON 解析失败：${message}; content_preview=${summarizeContent(jsonBlock)}`);
-  }
 }
 
 function getMaxTokens(period: string) {
@@ -418,40 +310,9 @@ ${timeDescription}
 `;
 }
 
-function formatBaziProfile(input: LifeKlineRequestInput, bazi: BaZiResult, birthYear: number, chartLifespan: ChartLifespan) {
-  return {
-    birth: input.birth,
-    birthTime: input.birthTime,
-    gender: input.gender,
-    dimension: input.dimension,
-    period: 'year',
-    chart_lifespan_years: chartLifespan.total_years,
-    bazi: {
-      nianZhu: bazi.formatted.nianZhu,
-      yueZhu: bazi.formatted.yueZhu,
-      riZhu: bazi.formatted.riZhu,
-      shiZhu: bazi.formatted.shiZhu,
-      riZhuWuXing: bazi.riZhuWuXing,
-      riZhuYinYang: bazi.riZhuYinYang,
-      wangShuai: bazi.wangShuai,
-      wuXingCount: bazi.wuXingCount,
-      shiShen: bazi.shiShen,
-      qiYunAge: bazi.qiYunAge,
-      daYun: bazi.daYun.map((item) => ({
-        ganZhi: `${item.gan}${item.zhi}`,
-        startAge: item.age,
-        endAge: item.age + 9,
-        startYear: birthYear + item.age - 1,
-        endYear: birthYear + item.age + 8,
-      })),
-    },
-  };
-}
-
 function buildSegmentPrompt({
   input,
   bazi,
-  birthYear,
   chartLifespan,
   rows,
   segmentIndex,
@@ -459,7 +320,6 @@ function buildSegmentPrompt({
 }: {
   input: LifeKlineRequestInput;
   bazi: BaZiResult;
-  birthYear: number;
   chartLifespan: ChartLifespan;
   rows: AnnualTaggedContextRow[];
   segmentIndex: number;
@@ -473,8 +333,9 @@ function buildSegmentPrompt({
         output: 'Return exactly one JSON object. Return rows only for the supplied row_id values.',
         forbidden_fields: ['year', 'age', 'o', 'h', 'l', 'c', 'open', 'high', 'low', 'close', 'technical_indicators'],
       },
-      profile: formatBaziProfile(input, bazi, birthYear, chartLifespan),
-      rows,
+      tag_legend: DS_TAG_LEGEND,
+      profile: buildDsCompactProfile(input, bazi, chartLifespan),
+      rows: buildDsCompactRows(rows),
     },
     null,
     2,
@@ -551,13 +412,11 @@ async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker:
 function buildGlobalAnalysisPrompt({
   input,
   bazi,
-  birthYear,
   chartLifespan,
   rows,
 }: {
   input: LifeKlineRequestInput;
   bazi: BaZiResult;
-  birthYear: number;
   chartLifespan: ChartLifespan;
   rows: Array<AnnualTaggedContextRow & DsScoreRow>;
 }) {
@@ -565,7 +424,15 @@ function buildGlobalAnalysisPrompt({
     {
       task: 'life_kline_yearly_global_analysis',
       instructions: {
-        output: 'Return exactly one JSON object containing global_analysis only.',
+        output: 'Return exactly one compact JSON object containing global_analysis only. Keep all Chinese text concise.',
+        length_limits: {
+          pattern_summary: '12-30 Chinese chars',
+          dimension_analysis: '80-140 Chinese chars',
+          key_insights: '40-90 Chinese chars',
+          period_reason: '20-45 Chinese chars',
+          peak_periods: 'at most 2 items',
+          risk_periods: 'at most 2 items',
+        },
         global_analysis_shape: {
           pattern_summary: 'string',
           dimension_analysis: 'string',
@@ -574,16 +441,9 @@ function buildGlobalAnalysisPrompt({
           risk_periods: [{ start_age: 'integer', end_age: 'integer', reason: 'string' }],
         },
       },
-      profile: formatBaziProfile(input, bazi, birthYear, chartLifespan),
-      timeline_summary: rows.map((row) => ({
-        row_id: row.row_id,
-        year: row.year,
-        age: row.age,
-        liu_nian: row.liu_nian,
-        da_yun: row.da_yun,
-        score: row.score,
-        analysis: row.analysis,
-      })),
+      tag_legend: DS_TAG_LEGEND,
+      profile: buildDsCompactProfile(input, bazi, chartLifespan),
+      timeline_summary: buildDsTimelineSummary(rows),
     },
     null,
     2,
@@ -595,7 +455,7 @@ async function requestGlobalAnalysis(systemPrompt: string, userPrompt: string): 
     const parsed = await callChatCompletion({
       systemPrompt,
       userPrompt,
-      maxTokens: 6000,
+      maxTokens: 9000,
       temperature: 0.2,
     });
     return validateDsGlobalAnalysis((parsed as { global_analysis?: unknown }).global_analysis);
@@ -657,7 +517,6 @@ async function runLifeKlineInferenceV42(
     const userPrompt = buildSegmentPrompt({
       input,
       bazi,
-      birthYear,
       chartLifespan,
       rows: segment.rows,
       segmentIndex: segment.index,
@@ -685,7 +544,6 @@ async function runLifeKlineInferenceV42(
   const globalAnalysisPrompt = buildGlobalAnalysisPrompt({
     input,
     bazi,
-    birthYear,
     chartLifespan,
     rows: mergedRows,
   });

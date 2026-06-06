@@ -345,24 +345,27 @@ retry 修复一次
 
 每次只做一小段，完成后跑测试。
 
-当前 `7d86f63 Add DeepSeek yearly scaffold pipeline` 已完成 v4.2 首批闭环：
+当前 `7d86f63 Add DeepSeek yearly scaffold pipeline` 与 `ad67e58 Improve DeepSeek yearly stability checks` 已完成 v4.2 首批闭环和 Phase 8/9 第一轮推进：
 
 ```text
 yearly scaffold
 annual context
 DS prompt/schema/validator
 单人年K v4.2 service
-4 段生成 + retry repair
+4 段受控并发 + retry repair
 route 本地合成 OHLC/TA
+live 验收脚本
+轻量命理标签
+DS compact context
 ```
 
 后续优先顺序：
 
 ```text
-1. 将 4 段生成改成受控并发，降低真实请求耗时。
-2. 增加 live 稳定性验收脚本，连续跑默认输入并输出结构一致性。
-3. 增加轻量命理标签，作为 DS prompt 提示，不直接决定 score。
-4. 如果解释质量仍不足，再继续调 prompt 和年度上下文。
+1. 用 live accuracy_summary 收集 3-5 个典型样本。
+2. 对比网页版 DS / GPT Pro / 当前 API 输出的主峰、风险段和走势。
+3. 只调 prompt、tag legend 和 compact context，暂不改 scaffold/validator 主契约。
+4. 如果多样本主趋势仍漂移，再讨论 Phase 10 base_score。
 ```
 
 历史执行顺序如下，供理解当前代码来源：

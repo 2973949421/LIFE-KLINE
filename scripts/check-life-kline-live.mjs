@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const cwd = process.cwd();
@@ -50,7 +51,63 @@ function loadLocalEnv() {
   }
 }
 
-function summarize(data, status, elapsedMs) {
+export function buildAccuracySummary(data) {
+  const timeline = Array.isArray(data?.timeline) ? data.timeline : [];
+  const scores = timeline.map((row) => Number(row.score)).filter((score) => Number.isFinite(score));
+
+  if (!scores.length) {
+    return {
+      score_min: null,
+      score_max: null,
+      score_avg: null,
+      top_score_ages: [],
+      low_score_ages: [],
+      peak_periods: data?.global_analysis?.peak_periods ?? [],
+      risk_periods: data?.global_analysis?.risk_periods ?? [],
+      first_20_year_trend: 'unknown',
+      middle_year_trend: 'unknown',
+      late_year_trend: 'unknown',
+    };
+  }
+
+  const sortedHigh = [...timeline]
+    .filter((row) => Number.isFinite(Number(row.score)))
+    .sort((a, b) => Number(b.score) - Number(a.score));
+  const sortedLow = [...timeline]
+    .filter((row) => Number.isFinite(Number(row.score)))
+    .sort((a, b) => Number(a.score) - Number(b.score));
+
+  return {
+    score_min: Math.min(...scores),
+    score_max: Math.max(...scores),
+    score_avg: Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(2)),
+    top_score_ages: sortedHigh.slice(0, 5).map((row) => row.age),
+    low_score_ages: sortedLow.slice(0, 5).map((row) => row.age),
+    peak_periods: data?.global_analysis?.peak_periods ?? [],
+    risk_periods: data?.global_analysis?.risk_periods ?? [],
+    first_20_year_trend: describeTrend(timeline.filter((row) => row.age >= 1 && row.age <= 20)),
+    middle_year_trend: describeTrend(timeline.filter((row) => row.age >= 21 && row.age <= 55)),
+    late_year_trend: describeTrend(timeline.filter((row) => row.age >= 56)),
+  };
+}
+
+function describeTrend(rows) {
+  const scores = rows.map((row) => Number(row.score)).filter((score) => Number.isFinite(score));
+  if (scores.length < 2) {
+    return 'unknown';
+  }
+
+  const delta = scores.at(-1) - scores[0];
+  if (delta >= 8) {
+    return 'up';
+  }
+  if (delta <= -8) {
+    return 'down';
+  }
+  return 'flat';
+}
+
+export function summarize(data, status, elapsedMs) {
   const timeline = Array.isArray(data?.timeline) ? data.timeline : [];
   const body = JSON.stringify(data ?? {});
 
@@ -72,11 +129,13 @@ function summarize(data, status, elapsedMs) {
     has_technical_commentary: Boolean(data?.technical_commentary),
     contains_reasoning_text: /reasoning_content|thinking|推理过程/.test(body),
     sample_scores: timeline.slice(0, 5).map((row) => row.score),
+    accuracy_summary: buildAccuracySummary(data),
   };
 }
 
-function buildConsistency(runs) {
+export function buildConsistency(runs) {
   const successful = runs.filter((run) => run.ok);
+  const elapsed = successful.map((run) => run.elapsed_ms).sort((a, b) => a - b);
   const signatures = successful.map((run) =>
     [
       run.timeline_count,
@@ -94,6 +153,11 @@ function buildConsistency(runs) {
     requested_runs: runs.length,
     successful_runs: successful.length,
     structure_consistent: signatures.length > 0 && new Set(signatures).size === 1,
+    reasoning_polluted_runs: successful.filter((run) => run.contains_reasoning_text).length,
+    avg_elapsed_ms: elapsed.length
+      ? Number((elapsed.reduce((sum, value) => sum + value, 0) / elapsed.length).toFixed(2))
+      : null,
+    p50_elapsed_ms: elapsed.length ? elapsed[Math.floor((elapsed.length - 1) / 2)] : null,
     max_elapsed_ms: successful.length ? Math.max(...successful.map((run) => run.elapsed_ms)) : null,
     min_elapsed_ms: successful.length ? Math.min(...successful.map((run) => run.elapsed_ms)) : null,
   };
@@ -162,7 +226,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
